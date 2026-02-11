@@ -111,7 +111,7 @@ let compute_h_cover (g : grammar) : h_cover =
       let tau_r = prod.head_pos in
 
       if pi_r = 0 then ()
-      else if pi_r = 1 then
+      else if pi_r = 1 then (* i.a -> Idr = IA | Terminal *)
         let x_h = symbol_to_h_item_or_terminal (get_symbol prod 1) in
         projections := (CompleteItem prod.lhs, x_h) :: !projections
       else
@@ -298,10 +298,72 @@ let recognize (g : grammar) (input : string list) : rec_table =
     List.iter
       (fun item ->
         let deriv = FromTerminal term in
-        if add_item tbl (i - 1) i item deriv then
+        if add_item tbl  (i - 1) i item deriv then
           Queue.add (item, i - 1, i) agenda)
       items
   done;
+
+  (* Boundary conditions: seed items from h-cover expansions at input boundaries *)
+  if n > 0 then begin
+    let first_term = tbl.input.(0) in
+    let last_term = tbl.input.(n - 1) in
+    (* Condition 1: seed T[0,1] *)
+    (* a) right expansions where y_h matches first_term or items in T[0,1] *)
+    List.iter
+      (fun (result, _left_item, y_h) ->
+        let matches =
+          match y_h with
+          | HTerm t -> t = first_term
+          | HItem item -> mem_item tbl 0 1 item
+        in
+        if matches then (
+          let deriv = FromTerminal first_term in
+          if add_item tbl 0 1 result deriv then
+            Queue.add (result, 0, 1) agenda))
+      tbl.cover.right_expansions;
+    (* b) left expansions where right_item is in T[0,1], x_h matches last_term or T[n-1,n] *)
+    List.iter
+      (fun (result, x_h, right_item) ->
+        if mem_item tbl 0 1 right_item then
+          let matches =
+            match x_h with
+            | HTerm t -> t = last_term
+            | HItem item -> mem_item tbl (n - 1) n item
+          in
+          if matches then (
+            let deriv = FromTerminal first_term in
+            if add_item tbl 0 1 result deriv then
+              Queue.add (result, 0, 1) agenda))
+      tbl.cover.left_expansions;
+    (* Condition 2: seed T[n-1,n] *)
+    (* a) left expansions where x_h matches last_term or items in T[n-1,n] *)
+    List.iter
+      (fun (result, x_h, _right_item) ->
+        let matches =
+          match x_h with
+          | HTerm t -> t = last_term
+          | HItem item -> mem_item tbl (n - 1) n item
+        in
+        if matches then (
+          let deriv = FromTerminal last_term in
+          if add_item tbl (n - 1) n result deriv then
+            Queue.add (result, n - 1, n) agenda))
+      tbl.cover.left_expansions;
+    (* b) right expansions where left_item is in T[n-1,n], y_h matches first_term or T[0,1] *)
+    List.iter
+      (fun (result, left_item, y_h) ->
+        if mem_item tbl (n - 1) n left_item then
+          let matches =
+            match y_h with
+            | HTerm t -> t = first_term
+            | HItem item -> mem_item tbl 0 1 item
+          in
+          if matches then (
+            let deriv = FromTerminal last_term in
+            if add_item tbl (n - 1) n result deriv then
+              Queue.add (result, n - 1, n) agenda))
+      tbl.cover.right_expansions
+  end;
 
   (* Process agenda *)
   while not (Queue.is_empty agenda) do
@@ -558,21 +620,21 @@ let run_and_print g input =
   Printf.printf
     "============================================================\n\n";
 
-  (* print_grammar g;
-  print_newline (); *)
+  print_grammar g;
+  print_newline ();
 
   let tbl = recognize g input in
 
-  (* print_cover_summary tbl.cover;
-  print_newline (); *)
+  print_cover_summary tbl.cover;
+  print_newline ();
 
   print_visual_table tbl;
 
-  (* print_cell_details tbl;
+  print_cell_details tbl;
   print_newline ();
 
   print_result tbl;
-  print_newline (); *)
+  print_newline ();
 
   tbl
 
