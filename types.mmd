@@ -1,0 +1,81 @@
+classDiagram
+    direction TB
+
+    class symbol {
+        <<variant>>
+        Terminal(string)
+        Nonterminal(string)
+    }
+
+    class production {
+        <<record>>
+        index : int
+        lhs : string
+        rhs : symbol list
+        head_pos : int
+    }
+
+    class grammar {
+        <<record>>
+        nonterminals : string list
+        terminals : string list
+        productions : production list
+        start : string
+    }
+
+    class h_item {
+        <<variant>>
+        PartialItem(int * int * int)
+        CompleteItem(string)
+    }
+
+    class h_item_or_terminal {
+        <<variant>>
+        HItem(h_item)
+        HTerm(string)
+    }
+
+    class derivation {
+        <<variant>>
+        FromTerminal(string)
+        FromProject(h_item)
+        FromLeftExpand(int * h_item_or_terminal * h_item)
+        FromRightExpand(int * h_item * h_item_or_terminal)
+    }
+
+    class h_cover {
+        <<record>>
+        items : h_item list
+        projections : (h_item * h_item_or_terminal) list
+        left_expansions : (h_item * h_item_or_terminal * h_item) list
+        right_expansions : (h_item * h_item * h_item_or_terminal) list
+    }
+
+    class table_entry {
+        <<record>>
+        items : (h_item * derivation list) list
+        blocked_left : (h_item * int * int) list
+        blocked_right : (h_item * int * int) list
+    }
+
+    class rec_table {
+        <<record>>
+        n : int
+        entries : table_entry[][]
+        input : string array
+        grammar : grammar
+        cover : h_cover
+    }
+
+    production --> symbol : rhs contains
+    grammar --> production : productions contains
+    h_item_or_terminal --> h_item : HItem wraps
+    derivation --> h_item : FromProject refs
+    derivation --> h_item_or_terminal : FromLeftExpand/RightExpand refs
+    h_cover --> h_item : items
+    h_cover --> h_item_or_terminal : projections/expansions ref
+    table_entry --> h_item : items, blocked_left, blocked_right
+    table_entry --> derivation : items carry derivations
+    rec_table --> table_entry : entries[][]
+    rec_table --> grammar : grammar
+    rec_table --> h_cover : cover

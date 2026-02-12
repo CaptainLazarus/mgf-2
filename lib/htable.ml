@@ -321,20 +321,16 @@ let recognize (g : grammar) (input : string list) : rec_table =
           if add_item tbl 0 1 result deriv then
             Queue.add (result, 0, 1) agenda))
       tbl.cover.right_expansions;
-    (* b) left expansions where right_item is in T[0,1], x_h matches last_term or T[n-1,n] *)
+    (* b) left expansions where right_item is in T[0,1] - x_h assumed beyond left edge *)
     List.iter
-      (fun (result, x_h, right_item) ->
-        if mem_item tbl 0 1 right_item then
-          let matches =
-            match x_h with
-            | HTerm t -> t = last_term
-            | HItem item -> mem_item tbl (n - 1) n item
-          in
-          if matches then (
-            let deriv = FromTerminal first_term in
-            if add_item tbl 0 1 result deriv then
-              Queue.add (result, 0, 1) agenda))
+      (fun (result, _x_h, right_item) ->
+        if mem_item tbl 0 1 right_item then (
+          let deriv = FromTerminal first_term in
+          if add_item tbl 0 1 result deriv then
+            Queue.add (result, 0, 1) agenda))
       tbl.cover.left_expansions;
+
+
     (* Condition 2: seed T[n-1,n] *)
     (* a) left expansions where x_h matches last_term or items in T[n-1,n] *)
     List.iter
@@ -349,19 +345,14 @@ let recognize (g : grammar) (input : string list) : rec_table =
           if add_item tbl (n - 1) n result deriv then
             Queue.add (result, n - 1, n) agenda))
       tbl.cover.left_expansions;
-    (* b) right expansions where left_item is in T[n-1,n], y_h matches first_term or T[0,1] *)
+
+    (* b) right expansions where left_item is in T[n-1,n] - y_h assumed beyond right edge *)
     List.iter
-      (fun (result, left_item, y_h) ->
-        if mem_item tbl (n - 1) n left_item then
-          let matches =
-            match y_h with
-            | HTerm t -> t = first_term
-            | HItem item -> mem_item tbl 0 1 item
-          in
-          if matches then (
-            let deriv = FromTerminal last_term in
-            if add_item tbl (n - 1) n result deriv then
-              Queue.add (result, n - 1, n) agenda))
+      (fun (result, left_item, _y_h) ->
+        if mem_item tbl (n - 1) n left_item then (
+          let deriv = FromTerminal last_term in
+          if add_item tbl (n - 1) n result deriv then
+            Queue.add (result, n - 1, n) agenda))
       tbl.cover.right_expansions
   end;
 
@@ -620,21 +611,21 @@ let run_and_print g input =
   Printf.printf
     "============================================================\n\n";
 
-  print_grammar g;
-  print_newline ();
+  (* print_grammar g;
+  print_newline (); *)
 
   let tbl = recognize g input in
 
-  print_cover_summary tbl.cover;
-  print_newline ();
+  (* print_cover_summary tbl.cover;
+  print_newline (); *)
 
   print_visual_table tbl;
 
-  print_cell_details tbl;
+  (* print_cell_details tbl;
   print_newline ();
 
   print_result tbl;
-  print_newline ();
+  print_newline (); *)
 
   tbl
 
@@ -708,11 +699,10 @@ let htable =
   let _ = run_and_print grammar_simple ["a"; "a"] in  *)
   let _ = run_and_print grammar_gcl [ "det"; "n"; "cl"; "v"; "det"; "n" ] in
   let _ = run_and_print grammar_gcl [ "det"; "n"; "cl"; "v"; "det" ] in
-  let _ = run_and_print grammar_gcl [ "n"; "cl"; "v"; "det" ] in
   let _ = run_and_print grammar_gcl [ "n"; "cl"; "v"; "det"; "n" ] in
   let _ = run_and_print grammar_gcl [ "cl"; "v"; "det"; "n" ] in
-  let _ = run_and_print grammar_gcl [ "cl"; "v"; "det"] in
-  (* let _ = run_and_print grammar_gcl ["n"; "cl"; "v"; "det"] in *)
-  (* let _ = run_and_print grammar_gcl ["det"; "n"] in  
-  let _ = run_and_print grammar_arith ["n"; "+"; "n"; "+"; "n"] in *)
+  let _ = run_and_print grammar_gcl [ "n"; "cl"; "v"; "det" ] in
+  let _ = run_and_print grammar_gcl [ "cl"; "v"; "det"] in  
+  let _ = run_and_print grammar_gcl ["cl"; "v"] in
+  let _ = run_and_print grammar_gcl ["v"] in
   ()
