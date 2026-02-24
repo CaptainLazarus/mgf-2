@@ -28,6 +28,7 @@ type derivation =
       int * h_item_or_terminal * h_item (* split_k, left_thing, right_item *)
   | FromRightExpand of
       int * h_item * h_item_or_terminal (* split_k, left_item, right_thing *)
+  | FromEpsilon of h_item (* Chain production skipping nullable symbol *)
 
 (* The h-cover structure *)
 type h_cover = {
@@ -35,6 +36,8 @@ type h_cover = {
   projections : (h_item * h_item_or_terminal) list;
   left_expansions : (h_item * h_item_or_terminal * h_item) list;
   right_expansions : (h_item * h_item * h_item_or_terminal) list;
+  epsilon_projections : (h_item * h_item) list;
+    (* (result_item, source_item) — chain: result_item -> source_item, skipping nullable *)
 }
 
 (* Recognition table entry - now with backpointers *)
@@ -82,6 +85,7 @@ let string_of_derivation = function
   | FromRightExpand (k, li, y) ->
       Printf.sprintf "RightExp(k=%d, %s, %s)" k (string_of_h_item li)
         (string_of_h_item_or_terminal y)
+  | FromEpsilon hi -> Printf.sprintf "Epsilon(%s)" (string_of_h_item hi)
 
 (* Helper functions *)
 
@@ -97,6 +101,36 @@ let is_reachable_partial_item prod s t =
   s >= 0 && s < tau_r && tau_r <= t && t <= pi_r && not (s = 0 && t = pi_r)
 
 let is_partial = function PartialItem _ -> true | CompleteItem _ -> false
+
+(* Compute nullable nonterminals via fixed-point iteration *)
+let compute_nullable (g : grammar) : string list =
+  let nullable = Hashtbl.create 16 in
+  (* Seed: nonterminals with empty RHS *)
+  List.iter
+    (fun prod ->
+      if List.length prod.rhs = 0 then Hashtbl.replace nullable prod.lhs ())
+    g.productions;
+  (* Iterate until fixed point *)
+  let changed = ref true in
+  while !changed do
+    changed := false;
+    List.iter
+      (fun prod ->
+        if not (Hashtbl.mem nullable prod.lhs) then
+          let all_nullable =
+            List.for_all
+              (fun sym ->
+                match sym with
+                | Nonterminal nt -> Hashtbl.mem nullable nt
+                | Terminal _ -> false)
+              prod.rhs
+          in
+          if all_nullable && List.length prod.rhs > 0 then (
+            Hashtbl.replace nullable prod.lhs ();
+            changed := true))
+      g.productions
+  done;
+  Hashtbl.fold (fun k () acc -> k :: acc) nullable []
 
 (* Compute the h-cover *)
 let compute_h_cover (g : grammar) : h_cover =
@@ -181,11 +215,40 @@ let compute_h_cover (g : grammar) : h_cover =
   List.iter (fun x -> Hashtbl.replace dedup_left x ()) !left_expansions;
   List.iter (fun x -> Hashtbl.replace dedup_right x ()) !right_expansions;
 
+  (* Compute epsilon projections from nullable nonterminals *)
+  let nullable = compute_nullable g in
+  let is_nullable nt = List.mem nt nullable in
+  let eps_projs = ref [] in
+
+  (* For left expansions: (result, x_h, right_item) where x_h is nullable *)
+  List.iter
+    (fun (result, x_h, right_item) ->
+      match x_h with
+      | HItem (CompleteItem d) when is_nullable d ->
+          eps_projs := (result, right_item) :: !eps_projs
+      | _ -> ())
+    (Hashtbl.fold (fun k () acc -> k :: acc) dedup_left []);
+
+  (* For right expansions: (result, left_item, y_h) where y_h is nullable *)
+  List.iter
+    (fun (result, left_item, y_h) ->
+      match y_h with
+      | HItem (CompleteItem d) when is_nullable d ->
+          eps_projs := (result, left_item) :: !eps_projs
+      | _ -> ())
+    (Hashtbl.fold (fun k () acc -> k :: acc) dedup_right []);
+
+  (* Dedup epsilon projections *)
+  let dedup_eps = Hashtbl.create 16 in
+  List.iter (fun x -> Hashtbl.replace dedup_eps x ()) !eps_projs;
+
   {
     items = Hashtbl.fold (fun k () acc -> k :: acc) items [];
     projections = !projections;
     left_expansions = Hashtbl.fold (fun k () acc -> k :: acc) dedup_left [];
     right_expansions = Hashtbl.fold (fun k () acc -> k :: acc) dedup_right [];
+    epsilon_projections =
+      Hashtbl.fold (fun k () acc -> k :: acc) dedup_eps [];
   }
 
 (* Create empty recognition table *)
@@ -280,6 +343,30 @@ let find_right_expansions cover left_item =
       if li = left_item then Some (result, y_h) else None)
     cover.right_expansions
 
+(* Find right expansions where y_h matches the given h_item *)
+let find_right_expansions_by_right cover y_item =
+  List.filter_map
+    (fun (result, left_item, y_h) ->
+      match y_h with
+      | HItem hi when hi = y_item -> Some (result, left_item)
+      | _ -> None)
+    cover.right_expansions
+
+(* Find left expansions where x_h matches the given h_item *)
+let find_left_expansions_by_left cover x_item =
+  List.filter_map
+    (fun (result, x_h, right_item) ->
+      match x_h with
+      | HItem hi when hi = x_item -> Some (result, right_item)
+      | _ -> None)
+    cover.left_expansions
+
+let find_epsilon_projections cover item =
+  List.filter_map
+    (fun (result, source) ->
+      if source = item then Some result else None)
+    cover.epsilon_projections
+
 let get_expansion_index result =
   match result with
   | PartialItem (r, s, t) -> (r, s, t)
@@ -291,6 +378,23 @@ let recognize (g : grammar) (input : string list) : rec_table =
   let n = tbl.n in
   let agenda = Queue.create () in
 
+  (* Init step: seed epsilon productions into T[i,i] for nullable nonterminals *)
+  let epsilon_nts =
+    List.filter_map
+      (fun prod ->
+        if List.length prod.rhs = 0 then Some prod.lhs else None)
+      g.productions
+  in
+  let epsilon_nts = List.sort_uniq String.compare epsilon_nts in
+  List.iter
+    (fun nt ->
+      for i = 0 to n do
+        let item = CompleteItem nt in
+        let deriv = FromTerminal "ε" in
+        if add_item tbl i i item deriv then Queue.add (item, i, i) agenda
+      done)
+    epsilon_nts;
+
   (* Init step: add items for terminals that are heads *)
   for i = 1 to n do
     let term = tbl.input.(i - 1) in
@@ -298,7 +402,7 @@ let recognize (g : grammar) (input : string list) : rec_table =
     List.iter
       (fun item ->
         let deriv = FromTerminal term in
-        if add_item tbl  (i - 1) i item deriv then
+        if add_item tbl (i - 1) i item deriv then
           Queue.add (item, i - 1, i) agenda)
       items
   done;
@@ -368,13 +472,21 @@ let recognize (g : grammar) (input : string list) : rec_table =
         if add_item tbl i j b_h deriv then Queue.add (b_h, i, j) agenda)
       projected;
 
+    (* Epsilon projection step *)
+    let eps_projected = find_epsilon_projections tbl.cover a_h in
+    List.iter
+      (fun b_h ->
+        let deriv = FromEpsilon a_h in
+        if add_item tbl i j b_h deriv then Queue.add (b_h, i, j) agenda)
+      eps_projected;
+
     (* Left-expand step *)
     let left_exps = find_left_expansions tbl.cover a_h in
     List.iter
       (fun (b_h, x_h) ->
         let r, s, t = get_expansion_index b_h in
         if not (is_blocked_left tbl i j a_h r t) then
-          for i' = 0 to i - 1 do
+          for i' = 0 to i do
             let can_combine =
               match x_h with
               | HTerm term -> i' = i - 1 && tbl.input.(i - 1) = term
@@ -399,7 +511,7 @@ let recognize (g : grammar) (input : string list) : rec_table =
       (fun (b_h, y_h) ->
         let r, s, t = get_expansion_index b_h in
         if not (is_blocked_right tbl i j a_h r s) then
-          for j' = j + 1 to n do
+          for j' = j to n do
             let can_combine =
               match y_h with
               | HTerm term -> j' = j + 1 && tbl.input.(j) = term
@@ -416,7 +528,31 @@ let recognize (g : grammar) (input : string list) : rec_table =
                   block_right tbl j j' y_item r t
               | _ -> ())
           done)
-      right_exps
+      right_exps;
+
+    (* Reverse right-expand: a_h acts as y_h in a right expansion *)
+    let rev_right = find_right_expansions_by_right tbl.cover a_h in
+    List.iter
+      (fun (result, left_item) ->
+        for i' = 0 to i do
+          if mem_item tbl i' i left_item then (
+            let deriv = FromRightExpand (i, left_item, HItem a_h) in
+            if add_item tbl i' j result deriv then
+              Queue.add (result, i', j) agenda)
+        done)
+      rev_right;
+
+    (* Reverse left-expand: a_h acts as x_h in a left expansion *)
+    let rev_left = find_left_expansions_by_left tbl.cover a_h in
+    List.iter
+      (fun (result, right_item) ->
+        for j' = j to n do
+          if mem_item tbl j j' right_item then (
+            let deriv = FromLeftExpand (j, HItem a_h, right_item) in
+            if add_item tbl i j' result deriv then
+              Queue.add (result, i, j') agenda)
+        done)
+      rev_left
   done;
 
   tbl
@@ -470,7 +606,7 @@ let pad_center s w =
     String.make left ' ' ^ s ^ String.make right ' '
 
 let get_cell_content tbl i j =
-  if j <= i then ""
+  if j < i then ""
   else
     let items = tbl.entries.(i).(j).items in
     if items = [] then "."
@@ -545,12 +681,14 @@ let print_visual_table tbl =
 let print_cell_details tbl =
   Printf.printf "+-- Cell Details %s+\n" (String.make 44 '-');
 
-  for i = 0 to tbl.n - 1 do
-    for j = i + 1 to tbl.n do
+  for i = 0 to tbl.n do
+    for j = i to tbl.n do
       let items = tbl.entries.(i).(j).items in
       if items <> [] then (
         let span =
-          String.concat " " (Array.to_list (Array.sub tbl.input i (j - i)))
+          if j > i then
+            String.concat " " (Array.to_list (Array.sub tbl.input i (j - i)))
+          else "ε"
         in
         Printf.printf "| T[%d,%d] spans \"%s\":\n" i j span;
         List.iter
@@ -601,6 +739,8 @@ let print_cover_summary (cover : h_cover) =
   Printf.printf "| Projections: %d\n" (List.length cover.projections);
   Printf.printf "| Left expansions: %d\n" (List.length cover.left_expansions);
   Printf.printf "| Right expansions: %d\n" (List.length cover.right_expansions);
+  Printf.printf "| Epsilon projections: %d\n"
+    (List.length cover.epsilon_projections);
   Printf.printf "+%s+\n" (String.make 60 '-')
 
 let run_and_print g input =
@@ -697,6 +837,45 @@ let grammar_arith : grammar =
     start = "E";
   }
 
+(* Grammar with epsilon: S -> A B, A -> a | ε, B -> b *)
+let grammar_epsilon : grammar =
+  {
+    nonterminals = [ "S"; "A"; "B" ];
+    terminals = [ "a"; "b" ];
+    productions =
+      [
+        {
+          index = 1;
+          lhs = "S";
+          rhs = [ Nonterminal "A"; Nonterminal "B" ];
+          head_pos = 1;
+        };
+        { index = 2; lhs = "A"; rhs = [ Terminal "a" ]; head_pos = 1 };
+        { index = 3; lhs = "A"; rhs = []; head_pos = 0 };
+        { index = 4; lhs = "B"; rhs = [ Terminal "b" ]; head_pos = 1 };
+      ];
+    start = "S";
+  }
+
+(* A* grammar: Astar -> A Astar | ε, A -> a *)
+let grammar_astar : grammar =
+  {
+    nonterminals = [ "Astar"; "A" ];
+    terminals = [ "a" ];
+    productions =
+      [
+        {
+          index = 1;
+          lhs = "Astar";
+          rhs = [ Nonterminal "A"; Nonterminal "Astar" ];
+          head_pos = 1;
+        };
+        { index = 2; lhs = "Astar"; rhs = []; head_pos = 0 };
+        { index = 3; lhs = "A"; rhs = [ Terminal "a" ]; head_pos = 1 };
+      ];
+    start = "Astar";
+  }
+
 let htable =
   let _ = run_and_print grammar_simple ["a" ; "b" ; "a"; "b"] in
   let _ = run_and_print grammar_simple ["a" ; "a" ; "b" ; "a"; "b"] in
@@ -710,4 +889,10 @@ let htable =
   let _ = run_and_print grammar_gcl [ "cl"; "v"; "det"] in  
   let _ = run_and_print grammar_gcl ["cl"; "v"] in
   let _ = run_and_print grammar_gcl ["v"] in *)
+  (* Epsilon grammar tests *)
+  let _ = run_and_print grammar_epsilon ["a"; "b"] in
+  let _ = run_and_print grammar_epsilon ["b"] in
+  let _ = run_and_print grammar_astar ["a"; "a"; "a"] in
+  let _ = run_and_print grammar_astar ["a"] in
+  let _ = run_and_print grammar_astar [] in
   ()
