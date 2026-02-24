@@ -668,10 +668,13 @@ let grammar_simple : grammar =
         {
           index = 1;
           lhs = "S";
-          rhs = [ Nonterminal "A"; Terminal "b" ];
+          rhs = [ Nonterminal "A"; Terminal "B" ];
           head_pos = 1;
         };
-        { index = 2; lhs = "A"; rhs = [ Terminal "a" ]; head_pos = 1 };
+        { index = 2; lhs = "A"; rhs = [ Terminal "a" ; Terminal "b" ]; head_pos = 1 };
+        { index = 3; lhs = "A"; rhs = [ Nonterminal "A" ; Terminal "a" ; Terminal "b"]; head_pos = 1 };
+        { index = 4; lhs = "B"; rhs = [Nonterminal "B" ; Terminal "a"; Terminal "a" ; Terminal "b" ]; head_pos = 2 };
+        { index = 5; lhs = "B"; rhs = [ Terminal "a" ; Terminal "a" ; Terminal "b" ]; head_pos = 2 };
       ];
     start = "S";
   }
@@ -695,14 +698,16 @@ let grammar_arith : grammar =
   }
 
 let htable =
-  (* let _ = run_and_print grammar_simple ["a"; "b"] in
-  let _ = run_and_print grammar_simple ["a"; "a"] in  *)
-  let _ = run_and_print grammar_gcl [ "det"; "n"; "cl"; "v"; "det"; "n" ] in
+  let _ = run_and_print grammar_simple ["a" ; "b" ; "a"; "b"] in
+  let _ = run_and_print grammar_simple ["a" ; "a" ; "b" ; "a"; "b"] in
+  let _ = run_and_print grammar_simple ["a" ; "b" ; "a"; "b" ; "b" ; "b"] in
+  let _ = run_and_print grammar_simple ["a"; "b" ; "a" ; "a" ; "a" ; "b"] in
+  (* let _ = run_and_print grammar_gcl [ "det"; "n"; "cl"; "v"; "det"; "n" ] in
   let _ = run_and_print grammar_gcl [ "det"; "n"; "cl"; "v"; "det" ] in
   let _ = run_and_print grammar_gcl [ "n"; "cl"; "v"; "det"; "n" ] in
   let _ = run_and_print grammar_gcl [ "cl"; "v"; "det"; "n" ] in
   let _ = run_and_print grammar_gcl [ "n"; "cl"; "v"; "det" ] in
   let _ = run_and_print grammar_gcl [ "cl"; "v"; "det"] in  
   let _ = run_and_print grammar_gcl ["cl"; "v"] in
-  let _ = run_and_print grammar_gcl ["v"] in
+  let _ = run_and_print grammar_gcl ["v"] in *)
   ()
