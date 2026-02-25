@@ -1,3 +1,4 @@
 (test
  (name test_practice)
- (libraries practice))
+ (libraries practice)
+ (deps (glob_files_rec ../grammars/*.g4)))

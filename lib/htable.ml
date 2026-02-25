@@ -573,6 +573,90 @@ let get_complete_items tbl i j =
 (* Get all items at a span *)
 let get_all_items tbl i j = tbl.entries.(i).(j).items
 
+(* Root inference *)
+type root_candidate = {
+  root : string;
+  missing_left : symbol list;
+  missing_right : symbol list;
+}
+
+let find_production tbl r =
+  List.find (fun p -> p.index = r) tbl.grammar.productions
+
+(* For each item in T[0,n]:
+   - CompleteItem nt   → root = nt, nothing missing
+   - PartialItem(r,s,t) → root = lhs of production r,
+                          missing_left  = rhs[0..s-1],
+                          missing_right = rhs[t..end]
+   Also climbs one level: for each CompleteItem nt, finds productions
+   where nt appears in the RHS and reports what siblings are absent. *)
+let infer_parse_roots tbl =
+  let n = tbl.n in
+  let items = get_all_items tbl 0 n in
+  let rhs_arr prod = Array.of_list prod.rhs in
+  let direct =
+    List.filter_map (fun (item, _) ->
+      match item with
+      | CompleteItem nt ->
+        Some { root = nt; missing_left = []; missing_right = [] }
+      | PartialItem (r, s, t) ->
+        let prod = find_production tbl r in
+        let rhs = rhs_arr prod in
+        let len = Array.length rhs in
+        Some {
+          root = prod.lhs;
+          missing_left  = Array.to_list (Array.sub rhs 0 s);
+          missing_right = Array.to_list (Array.sub rhs t (len - t));
+        })
+      items
+  in
+  (* Climb one level: for CompleteItems, check which productions use them *)
+  let complete_nts =
+    List.filter_map (fun (item, _) ->
+      match item with CompleteItem nt -> Some nt | _ -> None)
+      items
+  in
+  let inferred =
+    List.concat_map (fun nt ->
+      List.filter_map (fun prod ->
+        let rhs = prod.rhs in
+        let positions =
+          List.filteri (fun i sym ->
+            match sym with Nonterminal s -> s = nt && i >= 0 | _ -> false)
+            rhs
+          |> List.mapi (fun _ sym -> sym)
+        in
+        if positions = [] then None
+        else
+          (* Report missing siblings (everything in RHS except nt itself) *)
+          let missing =
+            List.filter (fun sym ->
+              match sym with Nonterminal s -> s <> nt | Terminal _ -> true)
+              rhs
+          in
+          if missing = [] then None  (* already captured as direct complete *)
+          else Some { root = prod.lhs; missing_left = missing; missing_right = [] })
+        tbl.grammar.productions)
+      complete_nts
+  in
+  let all = direct @ inferred in
+  List.sort_uniq compare all
+
+let print_root_candidates candidates =
+  Printf.printf "+-- Parse Root Inference %s+\n" (String.make 36 '-');
+  if candidates = [] then
+    Printf.printf "| No items found in T[0,n]\n"
+  else
+    List.iter (fun c ->
+      if c.missing_left = [] && c.missing_right = [] then
+        Printf.printf "| COMPLETE : %s\n" c.root
+      else
+        let fmt syms = String.concat " " (List.map string_of_symbol syms) in
+        Printf.printf "| PARTIAL  : %s  (missing left: [%s]  right: [%s])\n"
+          c.root (fmt c.missing_left) (fmt c.missing_right))
+      candidates;
+  Printf.printf "+%s+\n" (String.make 60 '-')
+
 (* ============================================================ *)
 (*                    PRINTING FUNCTIONS                        *)
 (* ============================================================ *)
@@ -877,10 +961,10 @@ let grammar_astar : grammar =
   }
 
 let htable =
-  let _ = run_and_print grammar_simple ["a" ; "b" ; "a"; "b"] in
+  (* let _ = run_and_print grammar_simple ["a" ; "b" ; "a"; "b"] in
   let _ = run_and_print grammar_simple ["a" ; "a" ; "b" ; "a"; "b"] in
   let _ = run_and_print grammar_simple ["a" ; "b" ; "a"; "b" ; "b" ; "b"] in
-  let _ = run_and_print grammar_simple ["a"; "b" ; "a" ; "a" ; "a" ; "b"] in
+  let _ = run_and_print grammar_simple ["a"; "b" ; "a" ; "a" ; "a" ; "b"] in *)
   (* let _ = run_and_print grammar_gcl [ "det"; "n"; "cl"; "v"; "det"; "n" ] in
   let _ = run_and_print grammar_gcl [ "det"; "n"; "cl"; "v"; "det" ] in
   let _ = run_and_print grammar_gcl [ "n"; "cl"; "v"; "det"; "n" ] in
@@ -890,9 +974,9 @@ let htable =
   let _ = run_and_print grammar_gcl ["cl"; "v"] in
   let _ = run_and_print grammar_gcl ["v"] in *)
   (* Epsilon grammar tests *)
-  let _ = run_and_print grammar_epsilon ["a"; "b"] in
+  (* let _ = run_and_print grammar_epsilon ["a"; "b"] in
   let _ = run_and_print grammar_epsilon ["b"] in
   let _ = run_and_print grammar_astar ["a"; "a"; "a"] in
   let _ = run_and_print grammar_astar ["a"] in
-  let _ = run_and_print grammar_astar [] in
+  let _ = run_and_print grammar_astar [] in *)
   ()

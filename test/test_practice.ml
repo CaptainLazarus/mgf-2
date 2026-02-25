@@ -1,26 +1,20 @@
 open Practice
 
 let () =
-  let g4_string = "
-    grammar test;
-    s : np vp EOF ;
-    np : N ;
-    np : np pp ;
-    vp : V np ;
-    pp : P np ;
-  " in
-  let domain_grammar = Grammar_reader.extract_grammar_from_string g4_string in
+  let domain_grammar = Grammar_reader.extract_grammar "../grammars/lisp.g4" in
   let converted = Grammar_converter.convert_grammar domain_grammar in
   Htable.print_grammar converted;
-  let tbl = Htable.recognize converted ["N"; "V"; "N"; "P"; "N"] in
-  let accepted = Htable.is_accepted tbl in
-  Printf.printf "Accepted: %b\n" accepted;
-  assert accepted;
-
-  (* Should reject bad input *)
-  let tbl2 = Htable.recognize converted ["V"; "N"] in
-  let accepted2 = Htable.is_accepted tbl2 in
-  Printf.printf "Rejected bad input: %b\n" (not accepted2);
-  assert (not accepted2);
-
-  Printf.printf "All grammar reader tests passed!\n"
+  let run input =
+    let tbl = Htable.run_and_print converted input in
+    Htable.print_root_candidates (Htable.infer_parse_roots tbl)
+  in
+  (* atom *)
+  run ["ATOM"];
+  (* dotted pair: (a . b) *)
+  run ["LPAREN"; "ATOM"; "DOT"; "ATOM"; "RPAREN"];
+  (* list with one element: (a) *)
+  run ["LPAREN"; "ATOM"; "RPAREN"];
+  (* empty list: () *)
+  run ["LPAREN"; "RPAREN"];
+  (* invalid: incomplete dotted pair *)
+  run ["LPAREN"; "ATOM"; "DOT"]
