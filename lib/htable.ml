@@ -378,8 +378,10 @@ let get_expansion_index result =
   | CompleteItem _ -> (-1, -1, -1)
 
 (* The main recognition algorithm with backpointers *)
-let recognize (g : grammar) (input : string list) : rec_table =
-  let tbl = create_table g input in
+(* Core algorithm: runs on an already-initialised (empty) rec_table.
+   Separated from table creation so the H-cover can be pre-computed once
+   and shared across many recognize_with calls. *)
+let recognize_tbl (tbl : rec_table) : rec_table =
   let n = tbl.n in
   let agenda = Queue.create () in
 
@@ -388,7 +390,7 @@ let recognize (g : grammar) (input : string list) : rec_table =
     List.filter_map
       (fun prod ->
         if List.length prod.rhs = 0 then Some prod.lhs else None)
-      g.productions
+      tbl.grammar.productions
   in
   let epsilon_nts = List.sort_uniq String.compare epsilon_nts in
   List.iter
@@ -561,6 +563,32 @@ let recognize (g : grammar) (input : string list) : rec_table =
   done;
 
   tbl
+
+let recognize (g : grammar) (input : string list) : rec_table =
+  recognize_tbl (create_table g input)
+
+(* Pre-compiled grammar: H-cover computed once, reused across all inputs *)
+type prepared_grammar = {
+  pg_grammar : grammar;
+  pg_cover   : h_cover;
+}
+
+let prepare (g : grammar) : prepared_grammar =
+  { pg_grammar = g; pg_cover = compute_h_cover g }
+
+(* Recognise using a pre-compiled grammar — skips H-cover recomputation.
+   Identical algorithm to recognize; the only difference is the table is built
+   with the already-computed cover from pg. *)
+let recognize_with (pg : prepared_grammar) (input : string list) : rec_table =
+  let n = List.length input in
+  let entries =
+    Array.init (n + 1) (fun _ ->
+        Array.init (n + 1) (fun _ ->
+            { items = []; blocked_left = []; blocked_right = [] }))
+  in
+  recognize_tbl
+    { n; entries; input = Array.of_list input;
+      grammar = pg.pg_grammar; cover = pg.pg_cover }
 
 let is_accepted tbl =
   let start_item = CompleteItem tbl.grammar.start in
