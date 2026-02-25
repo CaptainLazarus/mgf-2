@@ -6,7 +6,8 @@ let () =
   Htable.print_grammar converted;
   let run input =
     let tbl = Htable.run_and_print converted input in
-    Htable.print_root_candidates (Htable.infer_parse_roots tbl)
+    Htable.print_root_candidates (Htable.infer_parse_roots tbl);
+    Htable.print_trees tbl "lisp_"
   in
   (* atom *)
   run ["ATOM"];
