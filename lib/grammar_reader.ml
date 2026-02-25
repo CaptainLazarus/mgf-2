@@ -133,6 +133,7 @@ let convert_to_grammar (xs : (symbol * symbol list) list) : grammar =
 (* Currentyl reading as a string -> list. Should go from string -> graph. Is muchh safer and easier*)
 
 let extract_grammar_from_string (content : string) =
+  reset ();
   content
   |> filter_content
   |> split_rules
