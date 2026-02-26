@@ -2,3 +2,7 @@
  (public_name practice)
  (name main)
  (libraries practice))
+
+(executable
+ (name bench)
+ (libraries practice))

@@ -606,6 +606,16 @@ let get_complete_items tbl i j =
 (* Get all items at a span *)
 let get_all_items tbl i j = tbl.entries.(i).(j).items
 
+(* Count total distinct h-items placed across all cells *)
+let count_table_items tbl =
+  let total = ref 0 in
+  for i = 0 to tbl.n do
+    for j = i to tbl.n do
+      total := !total + List.length tbl.entries.(i).(j).items
+    done
+  done;
+  !total
+
 (* Parse tree type.
    - Node (nt, children) : original grammar nonterminal with its sub-trees
    - Leaf t              : matched terminal token
