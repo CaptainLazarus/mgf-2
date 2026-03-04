@@ -18,7 +18,11 @@ let convert_grammar (g : Domain_types.grammar) : Htable.grammar =
           | _ -> failwith "LHS must be a nonterminal"
         in
         let rhs = List.filter_map convert_symbol rule.rhs in
-        let head_pos = if rhs = [] then 0 else 1 in
+        let head_pos =
+          if rhs = [] then 0
+          else if rule.head_pos > 0 then rule.head_pos
+          else 1
+        in
         let prod : Htable.production =
           { index = idx; lhs; rhs; head_pos }
         in

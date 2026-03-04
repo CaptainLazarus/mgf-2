@@ -4,10 +4,7 @@ lisp_ : s_expression+ EOF ;
 s_expression 
     : ATOM
     | LPAREN s_expression DOT s_expression RPAREN  // dotted pair
-    | list 
-    ;
-
-list : LPAREN s_expression* RPAREN ;
+;
 
 // Lexer rules
 LPAREN : '(' ;

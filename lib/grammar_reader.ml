@@ -18,19 +18,46 @@ let remove_comments (input : string) : string =
   input |> Str.global_replace re_block "" |> Str.global_replace re_line "" |> String.trim
 ;;
 
+(* Scan a token list for [token], strip the brackets, and return the cleaned
+   list plus the 1-based position of the head token (or None if absent). *)
+let extract_head_marker (tokens : string list) : string list * int option =
+  let rec go acc i = function
+    | [] -> (List.rev acc, None)
+    | tok :: rest ->
+      let n = String.length tok in
+      if n >= 2 && tok.[0] = '[' && tok.[n - 1] = ']' then
+        let inner = String.sub tok 1 (n - 2) in
+        (List.rev_append acc (inner :: rest), Some (i + 1))
+      else
+        go (tok :: acc) (i + 1) rest
+  in
+  go [] 0 tokens
+
+(* Each x+ before the head expands to x x*, shifting the head rightward by 1. *)
+let adjust_head_for_plus (tokens : string list) (raw_pos : int) : int =
+  let n_plus_before =
+    List.length
+      (List.filteri (fun i tok -> i < raw_pos - 1 && ends_with_plus tok) tokens)
+  in
+  raw_pos + n_plus_before
+
 let expand_production (production_rules : (string * string list) list) =
   let rec expand_rhs_helper lhs rhs acc =
     match rhs with
     | [] -> acc
-    | x :: xs (* x = Aa *) ->
-      expand_rhs_helper
-        lhs
-        xs
-        ((lhs, String.split_on_char ' ' x |> List.map String.trim) :: acc)
+    | x :: xs ->
+      let raw_tokens =
+        String.split_on_char ' ' x
+        |> List.map String.trim
+        |> List.filter (fun s -> s <> "")
+      in
+      let tokens, head_raw = extract_head_marker raw_tokens in
+      let head_opt = Option.map (adjust_head_for_plus tokens) head_raw in
+      expand_rhs_helper lhs xs ((lhs, tokens, head_opt) :: acc)
   in
   let expand_rhs (production_rule : string * string list) acc =
     match production_rule with
-    | lhs, rhs (* rhs = [Aa ; Bb ; etc] *) -> expand_rhs_helper lhs rhs acc
+    | lhs, rhs -> expand_rhs_helper lhs rhs acc
   in
   let rec expand_production_helper (production_rules : (string * string list) list) acc =
     match production_rules with
@@ -73,61 +100,51 @@ let split_rhs (production_rules : (string * string) list) : (string * string lis
     String.trim (fst x), String.split_on_char '|' (snd x) |> List.map String.trim)
 ;;
 
-let convert_plus_to_star (q : (string * string list) Queue.t) (s : string) : string list =
+let convert_plus_to_star
+      (q : (string * string list * int option) Queue.t) (s : string) : string list =
   let base = String.sub s 0 (String.length s - 1) in
   let base_star = base ^ "*" in
-  if not (has_seen base_star)
-  then (
+  if not (has_seen base_star) then (
     mark_seen base_star;
-    let new_rule_1 = base_star, [ base; base_star ] in
-    let new_rule_2 = base_star, [ "epsilon" ] in
-    Queue.add new_rule_1 q;
-    Queue.add new_rule_2 q)
-  else ();
+    Queue.add (base_star, [ base; base_star ], None) q;
+    Queue.add (base_star, [ "epsilon" ], None) q);
   [ base; base ^ "*" ]
 ;;
 
-let desugar_rhs (q : (string * string list) Queue.t) (rhs : string list) : symbol list =
-  let rec desugar_rhs_helper
-            (q : (string * string list) Queue.t)
-            (rhs : string list)
-            (acc : string list)
-    : string list
-    =
-    match rhs with
+let desugar_rhs
+      (q : (string * string list * int option) Queue.t) (rhs : string list) : symbol list =
+  let rec go acc = function
     | [] -> List.rev acc
     | x :: xs ->
-      (* Printf.printf "x : %s" x; *)
-      (* flush stdout; *)
       let expanded = if ends_with_plus x then convert_plus_to_star q x else [ x ] in
-      desugar_rhs_helper q xs (List.rev_append expanded acc)
+      go (List.rev_append expanded acc) xs
   in
-  desugar_rhs_helper q rhs [] |> List.map convert_to_symbol
+  go [] rhs |> List.map convert_to_symbol
 ;;
 
 let rec process_queue
-          (q : (string * string list) Queue.t)
-          (acc : (symbol * symbol list) list)
+          (q : (string * string list * int option) Queue.t)
+          (acc : (symbol * symbol list * int option) list)
   =
-  (* dump_queue q; *)
   if Queue.is_empty q
   then List.rev acc
   else (
-    let lhs, rhs = Queue.take q in
-    let prod = convert_to_symbol lhs, desugar_rhs q rhs in
+    let lhs, rhs, head_opt = Queue.take q in
+    let prod = convert_to_symbol lhs, desugar_rhs q rhs, head_opt in
     process_queue q (prod :: acc))
 ;;
 
-let desugar_production_strings (production_tuples : (string * string list) list)
-  : (symbol * symbol list) list
+let desugar_production_strings (production_tuples : (string * string list * int option) list)
+  : (symbol * symbol list * int option) list
   =
   let q = Queue.create () in
   Queue.add_seq q (List.to_seq production_tuples);
   process_queue q []
 ;;
 
-let convert_to_grammar (xs : (symbol * symbol list) list) : grammar =
-  xs |> List.map (fun (lhs, rhs) -> { lhs; rhs })
+let convert_to_grammar (xs : (symbol * symbol list * int option) list) : grammar =
+  xs |> List.map (fun (lhs, rhs, head_opt) ->
+    { lhs; rhs; head_pos = Option.value ~default:0 head_opt })
 ;;
 
 (* Currentyl reading as a string -> list. Should go from string -> graph. Is muchh safer and easier*)

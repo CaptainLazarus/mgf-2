@@ -107,6 +107,13 @@ let is_reachable_partial_item prod s t =
 
 let is_partial = function PartialItem _ -> true | CompleteItem _ -> false
 
+(* Return a copy of the grammar with one production's head_pos changed *)
+let set_head ~prod_index ~head_pos (g : grammar) : grammar =
+  { g with productions =
+      List.map (fun p ->
+        if p.index = prod_index then { p with head_pos } else p)
+        g.productions }
+
 (* Compute nullable nonterminals via fixed-point iteration *)
 let compute_nullable (g : grammar) : string list =
   let nullable = Hashtbl.create 16 in
@@ -1046,6 +1053,40 @@ let run_and_print g input =
   print_newline (); *)
 
   tbl
+
+ let print_cover (cover : h_cover) =                                                                                                                                                                                                         
+    Printf.printf "+-- H-Cover %s+\n" (String.make 49 '-'); 
+    Printf.printf "| Items (%d):\n" (List.length cover.items);                                                                                                                                                                                
+    List.iter (fun it ->                                    
+      Printf.printf "|   %s\n" (string_of_h_item it))
+      (List.sort compare cover.items);
+    Printf.printf "| Projections (%d):\n" (List.length cover.projections);
+    List.iter (fun (lhs, rhs) ->
+      Printf.printf "|   %s  <-  %s\n"
+        (string_of_h_item lhs) (string_of_h_item_or_terminal rhs))
+      cover.projections;
+    Printf.printf "| Left expansions (%d):\n" (List.length cover.left_expansions);
+    List.iter (fun (result, x_h, right_item) ->
+      Printf.printf "|   %s  <-  %s  %s\n"
+        (string_of_h_item result)
+        (string_of_h_item_or_terminal x_h)
+        (string_of_h_item right_item))
+      cover.left_expansions;
+    Printf.printf "| Right expansions (%d):\n" (List.length cover.right_expansions);
+    List.iter (fun (result, left_item, y_h) ->
+      Printf.printf "|   %s  <-  %s  %s\n"
+        (string_of_h_item result)
+        (string_of_h_item left_item)
+        (string_of_h_item_or_terminal y_h))
+      cover.right_expansions;
+    Printf.printf "| Epsilon projections (%d):\n" (List.length cover.epsilon_projections);
+    List.iter (fun (result, source) ->
+      Printf.printf "|   %s  <-  %s  [ε]\n"
+        (string_of_h_item result)
+        (string_of_h_item source))
+      cover.epsilon_projections;
+    Printf.printf "+%s+\n" (String.make 60 '-')
+
 
 (* Example grammars *)
 

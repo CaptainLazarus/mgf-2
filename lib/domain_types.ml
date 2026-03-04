@@ -43,6 +43,7 @@ let rec production_order a b =
 type production_rule =
   { lhs : symbol
   ; rhs : production
+  ; head_pos : int  (* 1-based position of the head symbol; 0 = unspecified *)
   }
 
 let production_rule_order a b =
