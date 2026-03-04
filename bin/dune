@@ -6,3 +6,7 @@
 (executable
  (name bench)
  (libraries practice))
+
+(executable
+ (name frag_test)
+ (libraries practice))

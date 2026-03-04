@@ -29,8 +29,17 @@ type derivation =
   | FromRightExpand of
       int * h_item * h_item_or_terminal (* split_k, left_item, right_thing *)
   | FromEpsilon of h_item (* Chain production skipping nullable symbol *)
-  | FromBoundary of string * h_item_or_terminal
-      (* terminal that seeded this item, constituent dropped at input edge *)
+  | FromBoundaryRight of h_item_or_terminal * h_item_or_terminal
+      (* (virtual_dropped_left, real_right): result <- virtual_left  real_right,
+         real_right is the constituent actually in T[i,j]; virtual_left is dropped
+         beyond the left input boundary *)
+  | FromBoundaryLeft of h_item_or_terminal * h_item_or_terminal
+      (* (real_left, virtual_dropped_right): result <- real_left  virtual_right,
+         real_left is the constituent actually in T[i,j]; virtual_right is dropped
+         beyond the right input boundary *)
+  | FromInductiveFill of h_item * h_item
+      (* (virtual_left, real_right): inductive fill step — real_right is the right
+         child spanning [i,j]; virtual_left is the inferred/missing left sibling *)
 
 (* The h-cover structure *)
 type h_cover = {
@@ -88,9 +97,18 @@ let string_of_derivation = function
       Printf.sprintf "RightExp(k=%d, %s, %s)" k (string_of_h_item li)
         (string_of_h_item_or_terminal y)
   | FromEpsilon hi -> Printf.sprintf "Epsilon(%s)" (string_of_h_item hi)
-  | FromBoundary (t, dropped) ->
-      Printf.sprintf "Boundary(%s, dropped: %s)" t
-        (string_of_h_item_or_terminal dropped)
+  | FromBoundaryRight (virtual_left, real_right) ->
+      Printf.sprintf "BoundaryRight(virtual_left: %s, real_right: %s)"
+        (string_of_h_item_or_terminal virtual_left)
+        (string_of_h_item_or_terminal real_right)
+  | FromBoundaryLeft (real_left, virtual_right) ->
+      Printf.sprintf "BoundaryLeft(real_left: %s, virtual_right: %s)"
+        (string_of_h_item_or_terminal real_left)
+        (string_of_h_item_or_terminal virtual_right)
+  | FromInductiveFill (virtual_left, real_right) ->
+      Printf.sprintf "InductiveFill(virtual: %s, right: %s)"
+        (string_of_h_item virtual_left)
+        (string_of_h_item real_right)
 
 (* Helper functions *)
 
@@ -384,97 +402,9 @@ let get_expansion_index result =
   | PartialItem (r, s, t) -> (r, s, t)
   | CompleteItem _ -> (-1, -1, -1)
 
-(* The main recognition algorithm with backpointers *)
-(* Core algorithm: runs on an already-initialised (empty) rec_table.
-   Separated from table creation so the H-cover can be pre-computed once
-   and shared across many recognize_with calls. *)
-let recognize_tbl (tbl : rec_table) : rec_table =
+(* Core agenda processing loop: drains the agenda, applying project/expand rules *)
+let process_agenda (tbl : rec_table) (agenda : (h_item * int * int) Queue.t) : unit =
   let n = tbl.n in
-  let agenda = Queue.create () in
-
-  (* Init step: seed epsilon productions into T[i,i] for nullable nonterminals *)
-  let epsilon_nts =
-    List.filter_map
-      (fun prod ->
-        if List.length prod.rhs = 0 then Some prod.lhs else None)
-      tbl.grammar.productions
-  in
-  let epsilon_nts = List.sort_uniq String.compare epsilon_nts in
-  List.iter
-    (fun nt ->
-      for i = 0 to n do
-        let item = CompleteItem nt in
-        let deriv = FromTerminal "ε" in
-        if add_item tbl i i item deriv then Queue.add (item, i, i) agenda
-      done)
-    epsilon_nts;
-
-  (* Init step: add items for terminals that are heads *)
-  for i = 1 to n do
-    let term = tbl.input.(i - 1) in
-    let items = find_projections_from_terminal tbl.cover term in
-    List.iter
-      (fun item ->
-        let deriv = FromTerminal term in
-        if add_item tbl (i - 1) i item deriv then
-          Queue.add (item, i - 1, i) agenda)
-      items
-  done;
-
-  (* Boundary conditions: seed items from h-cover expansions at input boundaries *)
-  if n > 0 then begin
-    let first_term = tbl.input.(0) in
-    let last_term = tbl.input.(n - 1) in
-    (* Condition 1: seed T[0,1] *)
-    (* a) right expansions where y_h matches first_term — left_item is beyond left edge *)
-    List.iter
-      (fun (result, left_item, y_h) ->
-        let matches =
-          match y_h with
-          | HTerm t -> t = first_term
-          | HItem item -> mem_item tbl 0 1 item
-        in
-        if matches then (
-          let deriv = FromBoundary (first_term, HItem left_item) in
-          if add_item tbl 0 1 result deriv then
-            Queue.add (result, 0, 1) agenda))
-      tbl.cover.right_expansions;
-    (* b) left expansions where right_item is in T[0,1] — x_h is beyond left edge *)
-    List.iter
-      (fun (result, x_h, right_item) ->
-        if mem_item tbl 0 1 right_item then (
-          let deriv = FromBoundary (first_term, x_h) in
-          if add_item tbl 0 1 result deriv then
-            Queue.add (result, 0, 1) agenda))
-      tbl.cover.left_expansions;
-
-
-    (* Condition 2: seed T[n-1,n] *)
-    (* a) left expansions where x_h matches last_term — right_item is beyond right edge *)
-    List.iter
-      (fun (result, x_h, right_item) ->
-        let matches =
-          match x_h with
-          | HTerm t -> t = last_term
-          | HItem item -> mem_item tbl (n - 1) n item
-        in
-        if matches then (
-          let deriv = FromBoundary (last_term, HItem right_item) in
-          if add_item tbl (n - 1) n result deriv then
-            Queue.add (result, n - 1, n) agenda))
-      tbl.cover.left_expansions;
-
-    (* b) right expansions where left_item is in T[n-1,n] — y_h is beyond right edge *)
-    List.iter
-      (fun (result, left_item, y_h) ->
-        if mem_item tbl (n - 1) n left_item then (
-          let deriv = FromBoundary (last_term, y_h) in
-          if add_item tbl (n - 1) n result deriv then
-            Queue.add (result, n - 1, n) agenda))
-      tbl.cover.right_expansions
-  end;
-
-  (* Process agenda *)
   while not (Queue.is_empty agenda) do
     let a_h, i, j = Queue.pop agenda in
 
@@ -567,6 +497,127 @@ let recognize_tbl (tbl : rec_table) : rec_table =
               Queue.add (result, i, j') agenda)
         done)
       rev_left
+  done
+
+(* The main recognition algorithm with backpointers *)
+(* Core algorithm: runs on an already-initialised (empty) rec_table.
+   Separated from table creation so the H-cover can be pre-computed once
+   and shared across many recognize_with calls. *)
+let recognize_tbl (tbl : rec_table) : rec_table =
+  let n = tbl.n in
+  let agenda = Queue.create () in
+
+  (* Init step: seed epsilon productions into T[i,i] for nullable nonterminals *)
+  let epsilon_nts =
+    List.filter_map
+      (fun prod ->
+        if List.length prod.rhs = 0 then Some prod.lhs else None)
+      tbl.grammar.productions
+  in
+  let epsilon_nts = List.sort_uniq String.compare epsilon_nts in
+  List.iter
+    (fun nt ->
+      for i = 0 to n do
+        let item = CompleteItem nt in
+        let deriv = FromTerminal "ε" in
+        if add_item tbl i i item deriv then Queue.add (item, i, i) agenda
+      done)
+    epsilon_nts;
+
+  (* Init step: add items for terminals that are heads *)
+  for i = 1 to n do
+    let term = tbl.input.(i - 1) in
+    let items = find_projections_from_terminal tbl.cover term in
+    List.iter
+      (fun item ->
+        let deriv = FromTerminal term in
+        if add_item tbl (i - 1) i item deriv then
+          Queue.add (item, i - 1, i) agenda)
+      items
+  done;
+
+  (* Boundary conditions: seed items from h-cover expansions at input boundaries *)
+  if n > 0 then begin
+    let first_term = tbl.input.(0) in
+    let last_term = tbl.input.(n - 1) in
+    (* Condition 1: seed T[0,1] *)
+    (* a) right expansions where y_h matches first_term — left_item is dropped beyond left edge *)
+    List.iter
+      (fun (result, left_item, y_h) ->
+        let matches =
+          match y_h with
+          | HTerm t -> t = first_term
+          | HItem item -> mem_item tbl 0 1 item
+        in
+        if matches then (
+          let deriv = FromBoundaryRight (HItem left_item, y_h) in
+          if add_item tbl 0 1 result deriv then
+            Queue.add (result, 0, 1) agenda))
+      tbl.cover.right_expansions;
+    (* b) left expansions where right_item is in T[0,1] — x_h is dropped beyond left edge *)
+    List.iter
+      (fun (result, x_h, right_item) ->
+        if mem_item tbl 0 1 right_item then (
+          let deriv = FromBoundaryRight (x_h, HItem right_item) in
+          if add_item tbl 0 1 result deriv then
+            Queue.add (result, 0, 1) agenda))
+      tbl.cover.left_expansions;
+
+    (* Condition 2: seed T[n-1,n] *)
+    (* a) left expansions where x_h matches last_term — right_item is dropped beyond right edge *)
+    List.iter
+      (fun (result, x_h, right_item) ->
+        let matches =
+          match x_h with
+          | HTerm t -> t = last_term
+          | HItem item -> mem_item tbl (n - 1) n item
+        in
+        if matches then (
+          let deriv = FromBoundaryLeft (x_h, HItem right_item) in
+          if add_item tbl (n - 1) n result deriv then
+            Queue.add (result, n - 1, n) agenda))
+      tbl.cover.left_expansions;
+
+    (* b) right expansions where left_item is in T[n-1,n] — y_h is dropped beyond right edge *)
+    List.iter
+      (fun (result, left_item, y_h) ->
+        if mem_item tbl (n - 1) n left_item then (
+          let deriv = FromBoundaryLeft (HItem left_item, y_h) in
+          if add_item tbl (n - 1) n result deriv then
+            Queue.add (result, n - 1, n) agenda))
+      tbl.cover.right_expansions
+  end;
+
+  process_agenda tbl agenda;
+
+  (* Inductive fill pass: triggered only when T[0,k] is empty after normal inference.
+     For each such k, climb upward from T[0,k-1] via right-child rules (rules where a
+     T[0,k-1] item appears on the RIGHT of the RHS), inferring virtual left siblings via
+     FromBoundary, until the agenda can naturally right-expand into T[0,k] with token k. *)
+  for k = 1 to n do
+    if tbl.entries.(0).(k).items = [] then begin
+      let frontier = ref (List.map fst tbl.entries.(0).(k - 1).items) in
+      let visited = Hashtbl.create 16 in
+      while !frontier <> [] do
+        let next_frontier = ref [] in
+        List.iter (fun b ->
+          if not (Hashtbl.mem visited b) then begin
+            Hashtbl.replace visited b ();
+            (* Find rules X <- A B where B = b (b is RIGHT child, A is virtual) *)
+            List.iter (fun (x, a) ->
+              let deriv = FromInductiveFill (a, b) in
+              if add_item tbl 0 (k - 1) x deriv then begin
+                Queue.add (x, 0, k - 1) agenda;
+                next_frontier := x :: !next_frontier
+              end)
+              (find_right_expansions_by_right tbl.cover b)
+          end)
+          !frontier;
+        frontier := !next_frontier
+      done;
+      (* Let normal agenda processing combine the new T[0,k-1] items with token_k *)
+      process_agenda tbl agenda
+    end
   done;
 
   tbl
@@ -725,17 +776,26 @@ let print_root_candidates candidates =
 let cartesian xs ys =
   List.concat_map (fun x -> List.map (fun y -> x @ y) ys) xs
 
-(* get_subtrees mode tbl item i j
+(* get_subtrees mode visited tbl item i j
    Returns all possible "child contributions" for item spanning [i,j].
    - CompleteItem nt  : each contribution is [Node(nt, children)]
    - PartialItem(r,s,t): each contribution is the flat child list for
-                         RHS positions s+1..t of production r        *)
-let rec get_subtrees mode tbl item i j : tree list list =
-  let derivs = get_derivations tbl i j item in
-  List.sort_uniq compare
-    (List.concat_map (subtrees_for_deriv mode tbl item i j) derivs)
+                         RHS positions s+1..t of production r
+   visited tracks (item,i,j) triples currently on the call stack to
+   detect and break derivation cycles (returning [] for cyclic paths). *)
+let rec get_subtrees mode visited tbl item i j : tree list list =
+  let key = (item, i, j) in
+  if Hashtbl.mem visited key then []  (* cycle: cut here *)
+  else begin
+    Hashtbl.replace visited key ();
+    let derivs = get_derivations tbl i j item in
+    let result = List.sort_uniq compare
+      (List.concat_map (subtrees_for_deriv mode visited tbl item i j) derivs) in
+    Hashtbl.remove visited key;
+    result
+  end
 
-and subtrees_for_deriv mode tbl item i j = function
+and subtrees_for_deriv mode visited tbl item i j = function
   | FromTerminal t ->
     (match item with
      | CompleteItem nt ->
@@ -745,99 +805,137 @@ and subtrees_for_deriv mode tbl item i j = function
        if t = "ε" then [[]] else [[Leaf t]])
 
   | FromProject inner ->
-    (* inner is always CompleteItem nt2 (projections never have PartialItem on RHS) *)
-    let inner_subs = get_subtrees mode tbl inner i j in
+    let inner_subs = get_subtrees mode visited tbl inner i j in
     (match item with
      | CompleteItem nt ->
-       (* unary production nt -> inner; wrap inner trees as sole child *)
        List.map (fun sub -> [Node (nt, sub)]) inner_subs
      | PartialItem _ ->
-       (* base projection: partial item's head is inner *)
        inner_subs)
 
   | FromLeftExpand (k, x_h, right_item) ->
-    let left_subs  = subs_for_x mode tbl x_h i k in
-    let right_subs = get_subtrees mode tbl right_item k j in
+    let left_subs  = subs_for_x mode visited tbl x_h i k in
+    let right_subs = get_subtrees mode visited tbl right_item k j in
     let combined   = cartesian left_subs right_subs in
     (match item with
      | CompleteItem nt -> List.map (fun sub -> [Node (nt, sub)]) combined
      | PartialItem _   -> combined)
 
   | FromRightExpand (k, left_item, y_h) ->
-    let left_subs  = get_subtrees mode tbl left_item i k in
-    let right_subs = subs_for_x mode tbl y_h k j in
+    let left_subs  = get_subtrees mode visited tbl left_item i k in
+    let right_subs = subs_for_x mode visited tbl y_h k j in
     let combined   = cartesian left_subs right_subs in
     (match item with
      | CompleteItem nt -> List.map (fun sub -> [Node (nt, sub)]) combined
      | PartialItem _   -> combined)
 
   | FromEpsilon inner ->
-    (* A nullable symbol was skipped at this span; delegate to inner.
-       Note: the skipped nullable symbol is not stored in the derivation,
-       so it is not included in the tree. *)
-    let inner_subs = get_subtrees mode tbl inner i j in
+    let inner_subs = get_subtrees mode visited tbl inner i j in
     (match item with
      | CompleteItem nt -> List.map (fun sub -> [Node (nt, sub)]) inner_subs
      | PartialItem _   -> inner_subs)
 
-  | FromBoundary (t, dropped) ->
-    let children =
-      match mode with
-      | `Virtual -> [Leaf t; Virtual dropped]
-      | `Omit    -> [Leaf t]
+  | FromBoundaryRight (virtual_left, real_right) ->
+    (* result <- virtual_left  real_right: real_right spans [i,j], virtual_left is dropped *)
+    let right_subs = subs_for_x mode visited tbl real_right i j in
+    let virt = match mode with
+      | `Virtual -> [Virtual virtual_left]
+      | `Omit    -> []
     in
+    let combined = List.map (fun sub -> virt @ sub) right_subs in
     (match item with
-     | CompleteItem nt -> [[Node (nt, children)]]
-     | PartialItem _   -> [children])
+     | CompleteItem nt -> List.map (fun sub -> [Node (nt, sub)]) combined
+     | PartialItem _   -> combined)
 
-and subs_for_x mode tbl x i j =
+  | FromBoundaryLeft (real_left, virtual_right) ->
+    (* result <- real_left  virtual_right: real_left spans [i,j], virtual_right is dropped *)
+    let left_subs = subs_for_x mode visited tbl real_left i j in
+    let virt = match mode with
+      | `Virtual -> [Virtual virtual_right]
+      | `Omit    -> []
+    in
+    let combined = List.map (fun sub -> sub @ virt) left_subs in
+    (match item with
+     | CompleteItem nt -> List.map (fun sub -> [Node (nt, sub)]) combined
+     | PartialItem _   -> combined)
+
+  | FromInductiveFill (virtual_left, real_right) ->
+    (* real_right spans [i,j] (same span as item, A is zero-span virtual) *)
+    let right_subs = get_subtrees mode visited tbl real_right i j in
+    let virt = match mode with
+      | `Virtual -> [Virtual (HItem virtual_left)]
+      | `Omit    -> []
+    in
+    let combined = List.map (fun sub -> virt @ sub) right_subs in
+    (match item with
+     | CompleteItem nt -> List.map (fun sub -> [Node (nt, sub)]) combined
+     | PartialItem _   -> combined)
+
+and subs_for_x mode visited tbl x i j =
   match x with
   | HTerm t      -> [[Leaf t]]
-  | HItem h_item -> get_subtrees mode tbl h_item i j
+  | HItem h_item -> get_subtrees mode visited tbl h_item i j
 
 (* Reconstruct all parse trees for nonterminal nt spanning the full input.
    Virtual variant: dropped boundary constituents appear as Virtual nodes.
    Omit variant:    dropped boundary constituents are silently excluded.  *)
 let reconstruct_trees_virtual tbl nt =
-  let subs = get_subtrees `Virtual tbl (CompleteItem nt) 0 tbl.n in
+  let visited = Hashtbl.create 16 in
+  let subs = get_subtrees `Virtual visited tbl (CompleteItem nt) 0 tbl.n in
   List.filter_map (function [t] -> Some t | _ -> None) subs
 
 let reconstruct_trees_omit tbl nt =
-  let subs = get_subtrees `Omit tbl (CompleteItem nt) 0 tbl.n in
+  let visited = Hashtbl.create 16 in
+  let subs = get_subtrees `Omit visited tbl (CompleteItem nt) 0 tbl.n in
   List.filter_map (function [t] -> Some t | _ -> None) subs
 
 (* ============================================================ *)
 (*                    TREE PRINTING                             *)
 (* ============================================================ *)
 
-let rec print_tree_aux prefix is_last tree =
+let expand_virtual g x =
+  match x with
+  | HTerm t -> Printf.sprintf "\"%s\"" t
+  | HItem (CompleteItem nt) -> nt
+  | HItem (PartialItem (r, s, t)) ->
+      let prod = List.find (fun p -> p.index = r) g.productions in
+      let syms = Array.of_list prod.rhs in
+      (* positions s+1..t in the RHS (1-indexed) → indices s..t-1 (0-indexed) *)
+      Array.to_list (Array.sub syms s (t - s))
+      |> List.map string_of_symbol
+      |> String.concat " "
+
+let label_virtual ?grammar x =
+  match grammar with
+  | Some g -> expand_virtual g x
+  | None   -> string_of_h_item_or_terminal x
+
+let rec print_tree_aux ?grammar prefix is_last tree =
   let connector    = if is_last then "└── " else "├── " in
   let child_prefix = prefix ^ (if is_last then "    " else "│   ") in
   match tree with
   | Leaf t ->
     Printf.printf "%s%s\"%s\"\n" prefix connector t
   | Virtual x ->
-    Printf.printf "%s%s<virtual: %s>\n" prefix connector
-      (string_of_h_item_or_terminal x)
+    Printf.printf "%s%s<virtual: %s>\n" prefix connector (label_virtual ?grammar x)
   | Node (nt, children) ->
     Printf.printf "%s%s%s\n" prefix connector nt;
     let n = List.length children in
     List.iteri (fun i child ->
-      print_tree_aux child_prefix (i = n - 1) child)
+      print_tree_aux ?grammar child_prefix (i = n - 1) child)
       children
 
-let print_tree tree =
+let print_tree ?grammar tree =
   match tree with
   | Leaf t    -> Printf.printf "\"%s\"\n" t
-  | Virtual x -> Printf.printf "<virtual: %s>\n" (string_of_h_item_or_terminal x)
+  | Virtual x -> Printf.printf "<virtual: %s>\n" (label_virtual ?grammar x)
   | Node (nt, children) ->
     Printf.printf "%s\n" nt;
     let n = List.length children in
     List.iteri (fun i child ->
-      print_tree_aux "" (i = n - 1) child)
+      print_tree_aux ?grammar "" (i = n - 1) child)
       children
 
-let print_trees ?(mode="omit") tbl nt =
+let print_trees ?grammar ?(mode="omit") tbl nt =
   let trees =
     if mode = "virtual" then reconstruct_trees_virtual tbl nt
     else reconstruct_trees_omit tbl nt
@@ -849,12 +947,12 @@ let print_trees ?(mode="omit") tbl nt =
     Printf.printf "| No trees (input not accepted as %s)\n" nt
   else if n = 1 then (
     Printf.printf "| 1 parse tree:\n|\n";
-    print_tree (List.hd trees))
+    print_tree ?grammar (List.hd trees))
   else (
     Printf.printf "| AMBIGUOUS: %d parse trees:\n" n;
     List.iteri (fun i tree ->
       Printf.printf "|\n| Tree %d:\n" (i + 1);
-      print_tree tree)
+      print_tree ?grammar tree)
       trees);
   Printf.printf "+%s+\n" (String.make 60 '-')
 
