@@ -15,27 +15,27 @@ let () =
   let pg = Htable.prepare grammar in
 
   (* 2. Inputs to test *)
-  (* let inputs =
+  let inputs =
     [ 
-      ["ATOM"]
+      (* ["ATOM"]
     ; ["LPAREN"; "ATOM"; "DOT"; "ATOM"; "RPAREN"]
     ; ["LPAREN"; "ATOM"; "RPAREN"]
     ; ["LPAREN"; "RPAREN"] ;
     ["ATOM"; "DOT"; "ATOM" ; "RPAREN" ]
-    ;
+    ; *)
     ["RPAREN" ; "RPAREN" ; "RPAREN" ; "RPAREN" ; "RPAREN" ; "RPAREN"] ;
         ["LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN"] 
     ]
-  in *)
+  in
   let _ = Htable.print_cover pg.pg_cover in
   (* let _ = Htable.run_and_print pg.pg_grammar ["DOT" ; "LPAREN" ; "ATOM" ; "DOT"; "ATOM" ; "RPAREN" ; "RPAREN" ; "RPAREN"] in
   let _ = Htable.run_and_print pg.pg_grammar ["DOT" ; "LPAREN" ; "ATOM" ; "DOT"; "ATOM" ; "RPAREN" ; "RPAREN"] in
   let _ = Htable.run_and_print pg.pg_grammar ["LPAREN" ; "ATOM" ; "DOT"; "ATOM" ; "RPAREN" ; "RPAREN"] in
   let _ = Htable.run_and_print pg.pg_grammar ["DOT"; "ATOM" ; "RPAREN" ; "RPAREN"  ; "RPAREN" ; "RPAREN" ; "RPAREN" ; "RPAREN"] in *)
-  let _ = Htable.run_and_print pg.pg_grammar         ["LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN"]  in
-  ()
+  (* let _ = Htable.run_and_print pg.pg_grammar ["LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN" ; "LPAREN"]  in *)
+  
 
-  (* let results : (string list * Htable.tree list) list =
+  let results : (string list * Htable.tree list) list =
     List.map (fun input ->
       let tbl = Htable.recognize_with pg input in
       let trees = Htable.reconstruct_trees_virtual tbl grammar.start in
@@ -53,4 +53,4 @@ let () =
       Printf.printf "Tree %d:\n" (i + 1);
       Htable.print_tree ~grammar tree)
       trees)
-    inputs results *)
+    inputs results

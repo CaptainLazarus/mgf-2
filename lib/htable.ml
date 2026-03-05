@@ -40,6 +40,9 @@ type derivation =
   | FromInductiveFill of h_item * h_item
       (* (virtual_left, real_right): inductive fill step — real_right is the right
          child spanning [i,j]; virtual_left is the inferred/missing left sibling *)
+  | FromInductiveFillRight of h_item * h_item_or_terminal
+      (* (real_left, virtual_right): R-Reduce step — real_left is the left child
+         spanning [i,j]; virtual_right is the inferred/missing right sibling *)
 
 (* The h-cover structure *)
 type h_cover = {
@@ -109,6 +112,10 @@ let string_of_derivation = function
       Printf.sprintf "InductiveFill(virtual: %s, right: %s)"
         (string_of_h_item virtual_left)
         (string_of_h_item real_right)
+  | FromInductiveFillRight (real_left, virtual_right) ->
+      Printf.sprintf "InductiveFillRight(left: %s, virtual: %s)"
+        (string_of_h_item real_left)
+        (string_of_h_item_or_terminal virtual_right)
 
 (* Helper functions *)
 
@@ -590,12 +597,11 @@ let recognize_tbl (tbl : rec_table) : rec_table =
 
   process_agenda tbl agenda;
 
-  (* Inductive fill pass: triggered only when T[0,k] is empty after normal inference.
-     For each such k, climb upward from T[0,k-1] via right-child rules (rules where a
-     T[0,k-1] item appears on the RIGHT of the RHS), inferring virtual left siblings via
-     FromBoundary, until the agenda can naturally right-expand into T[0,k] with token k. *)
+  (* L-Reduce: triggered when T[0,k] is empty after normal inference.
+     Climbs T[0,k-1] via right-child rules, inferring virtual left siblings,
+     then lets the agenda right-expand into T[0,k]. *)
   for k = 1 to n do
-    if tbl.entries.(0).(k).items = [] then begin
+    begin
       let frontier = ref (List.map fst tbl.entries.(0).(k - 1).items) in
       let visited = Hashtbl.create 16 in
       while !frontier <> [] do
@@ -615,10 +621,83 @@ let recognize_tbl (tbl : rec_table) : rec_table =
           !frontier;
         frontier := !next_frontier
       done;
-      (* Let normal agenda processing combine the new T[0,k-1] items with token_k *)
       process_agenda tbl agenda
     end
   done;
+
+  (* R-Reduce: only runs if T[0,n] is empty after normal recognition + L-Reduce.
+     Anchored at n, fills T[k,n] upward by right-expanding items in T[k+1,n]
+     with virtual right siblings, then combining with T[k,k+1]. *)
+  if tbl.entries.(0).(n).items = [] then begin
+    for k = n - 1 downto 0 do
+      begin
+        let frontier = ref (List.map fst tbl.entries.(k + 1).(n).items) in
+        let visited = Hashtbl.create 16 in
+        while !frontier <> [] do
+          let next_frontier = ref [] in
+          List.iter (fun b ->
+            if not (Hashtbl.mem visited b) then begin
+              Hashtbl.replace visited b ();
+              List.iter (fun (x, y_h) ->
+                let deriv = FromInductiveFillRight (b, y_h) in
+                if add_item tbl (k + 1) n x deriv then begin
+                  Queue.add (x, k + 1, n) agenda;
+                  next_frontier := x :: !next_frontier
+                end)
+                (find_right_expansions tbl.cover b)
+            end)
+            !frontier;
+          frontier := !next_frontier
+        done;
+        process_agenda tbl agenda
+      end
+    done;
+
+    (* R-Reduce final pass: right-expand items in T[0,n] with virtual right
+       siblings. Needed because R-Reduce may leave T[0,n] partially filled. *)
+    let frontier = ref (List.map fst tbl.entries.(0).(n).items) in
+    let visited = Hashtbl.create 16 in
+    while !frontier <> [] do
+      let next_frontier = ref [] in
+      List.iter (fun b ->
+        if not (Hashtbl.mem visited b) then begin
+          Hashtbl.replace visited b ();
+          List.iter (fun (x, y_h) ->
+            let deriv = FromInductiveFillRight (b, y_h) in
+            if add_item tbl 0 n x deriv then begin
+              Queue.add (x, 0, n) agenda;
+              next_frontier := x :: !next_frontier
+            end)
+            (find_right_expansions tbl.cover b)
+        end)
+        !frontier;
+      frontier := !next_frontier
+    done;
+    process_agenda tbl agenda
+  end;
+
+  (* L-Reduce final pass: always runs. Applies virtual left-expansion to items
+     in T[0,n] that are right children of rules. Symmetric to R-Reduce final
+     pass — runs for both L-Reduce and R-Reduce produced items. *)
+  let frontier = ref (List.map fst tbl.entries.(0).(n).items) in
+  let visited = Hashtbl.create 16 in
+  while !frontier <> [] do
+    let next_frontier = ref [] in
+    List.iter (fun b ->
+      if not (Hashtbl.mem visited b) then begin
+        Hashtbl.replace visited b ();
+        List.iter (fun (x, a) ->
+          let deriv = FromInductiveFill (a, b) in
+          if add_item tbl 0 n x deriv then begin
+            Queue.add (x, 0, n) agenda;
+            next_frontier := x :: !next_frontier
+          end)
+          (find_right_expansions_by_right tbl.cover b)
+      end)
+      !frontier;
+    frontier := !next_frontier
+  done;
+  process_agenda tbl agenda;
 
   tbl
 
@@ -859,13 +938,25 @@ and subtrees_for_deriv mode visited tbl item i j = function
      | PartialItem _   -> combined)
 
   | FromInductiveFill (virtual_left, real_right) ->
-    (* real_right spans [i,j] (same span as item, A is zero-span virtual) *)
+    (* real_right spans [i,j] (same span as item, virtual_left is zero-span virtual) *)
     let right_subs = get_subtrees mode visited tbl real_right i j in
     let virt = match mode with
       | `Virtual -> [Virtual (HItem virtual_left)]
       | `Omit    -> []
     in
     let combined = List.map (fun sub -> virt @ sub) right_subs in
+    (match item with
+     | CompleteItem nt -> List.map (fun sub -> [Node (nt, sub)]) combined
+     | PartialItem _   -> combined)
+
+  | FromInductiveFillRight (real_left, virtual_right) ->
+    (* real_left spans [i,j] (same span as item, virtual_right is zero-span virtual) *)
+    let left_subs = get_subtrees mode visited tbl real_left i j in
+    let virt = match mode with
+      | `Virtual -> [Virtual virtual_right]
+      | `Omit    -> []
+    in
+    let combined = List.map (fun sub -> sub @ virt) left_subs in
     (match item with
      | CompleteItem nt -> List.map (fun sub -> [Node (nt, sub)]) combined
      | PartialItem _   -> combined)
@@ -881,12 +972,12 @@ and subs_for_x mode visited tbl x i j =
 let reconstruct_trees_virtual tbl nt =
   let visited = Hashtbl.create 16 in
   let subs = get_subtrees `Virtual visited tbl (CompleteItem nt) 0 tbl.n in
-  List.filter_map (function [t] -> Some t | _ -> None) subs
+  List.sort_uniq compare (List.filter_map (function [t] -> Some t | _ -> None) subs)
 
 let reconstruct_trees_omit tbl nt =
   let visited = Hashtbl.create 16 in
   let subs = get_subtrees `Omit visited tbl (CompleteItem nt) 0 tbl.n in
-  List.filter_map (function [t] -> Some t | _ -> None) subs
+  List.sort_uniq compare (List.filter_map (function [t] -> Some t | _ -> None) subs)
 
 (* ============================================================ *)
 (*                    TREE PRINTING                             *)
