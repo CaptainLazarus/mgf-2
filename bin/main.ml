@@ -19,40 +19,54 @@ let run_java_and_read_tokens () =
 
 let token_of_json j = j |> member "token" |> to_string
 
+let pretty_token = function
+  | "LPAREN" -> "(" | "RPAREN" -> ")"
+  | "DOT"    -> "." | "ATOM"   -> "ATOM"
+  | s -> s
+
+let rec collect_tokens tree =
+  match tree with
+  | Htable.Leaf s -> [pretty_token s]
+  | Htable.Virtual (Htable.HTerm t) -> [pretty_token t]
+  | Htable.Virtual (Htable.HItem (Htable.CompleteItem nt)) -> [nt]
+  | Htable.Virtual (Htable.HItem (Htable.PartialItem _)) -> []
+  | Htable.Node (_, []) -> []
+  | Htable.Node (_, children) -> List.concat_map collect_tokens children
+
+let linearize_tree tree =
+  String.concat " " (collect_tokens tree)
+
+type display_mode = Tokens | Trees [@@warning "-37"]
+
+let display_mode = Trees
+
+let print_results grammar tbl roots mode =
+  List.iter (fun (rc : Htable.root_candidate) ->
+    let trees = Htable.reconstruct_trees_virtual tbl rc.root in
+    if trees <> [] then begin
+      match mode with
+      | Tokens ->
+        let lines = List.sort_uniq String.compare (List.map linearize_tree trees) in
+        Printf.printf "  %s (%d unique):\n" rc.root (List.length lines);
+        List.iter (fun line -> Printf.printf "    %s\n" line) lines
+      | Trees ->
+        Printf.printf "  %s (%d):\n" rc.root (List.length trees);
+        List.iteri (fun i tree ->
+          Printf.printf "  Tree %d:\n" (i + 1);
+          Htable.print_tree ~grammar tree)
+          trees
+    end)
+    roots
+
 let () =
   let grammar =
-    Grammar_reader.extract_grammar "grammars/c_simple.g4"
+    Grammar_reader.extract_grammar "grammars/lisp.g4"
     |> Grammar_converter.convert_grammar
   in
   let pg = Htable.prepare grammar in
   let tokens = run_java_and_read_tokens () |> List.map token_of_json in
-  Printf.printf "Tokens: [%s]\n%!" (String.concat "; " tokens);
-
-  let tbl_full    = Htable.recognize_with          pg tokens in
-  let tbl_bounded = Htable.recognize_bounded_with  pg tokens in
-
-  Printf.printf "\n%-6s  %s\n" "Cell" "full | bounded";
-  Printf.printf "%s\n" (String.make 60 '-');
-  let n = List.length tokens in
-  for i = 0 to n do
-    for j = i to n do
-      let full    = List.length (Htable.get_all_items tbl_full    i j) in
-      let bounded = List.length (Htable.get_all_items tbl_bounded i j) in
-      if full > 0 || bounded > 0 then
-        Printf.printf "T[%d,%d]  %d | %d\n" i j full bounded
-    done
-  done;
-
-  Printf.printf "\n--- Full table ---\n";
-  Htable.print_visual_table tbl_full;
-  let roots = Htable.infer_parse_roots tbl_full in
-  List.iter (fun (rc : Htable.root_candidate) ->
-    let trees = Htable.reconstruct_trees_omit tbl_full rc.root in
-    if trees <> [] then begin
-      Printf.printf "\n=== %s (%d tree(s)) ===\n" rc.root (List.length trees);
-      List.iteri (fun i tree ->
-        Printf.printf "Tree %d:\n" (i + 1);
-        Htable.print_tree ~grammar tree)
-        trees
-    end)
-    roots
+  Printf.printf "Input: [%s]\n%!" (String.concat "; " tokens);
+  let tbl = Htable.recognize_with pg tokens in
+  Htable.print_visual_table tbl;
+  let roots = Htable.infer_parse_roots tbl in
+  print_results grammar tbl roots display_mode
