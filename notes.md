@@ -46,9 +46,3 @@ Assumptions
 
 1. Check head issues
 2. Check the actual algo.
-
-Make notes about project ; goals ; challenges ; what am I doing now ; general stuff in charge ; Read his recent papers (breadth over width) ; Don't freak ;
-
-Complexities, prep basic stuff.
-
-Check --> LPrane A dot A Rparen Dot LParen A Dot A RParen
