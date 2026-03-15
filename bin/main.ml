@@ -57,7 +57,7 @@ let get_tokens = function
 
 let print_results grammar tbl roots mode =
   List.iter (fun (rc : Types.root_candidate) ->
-    let trees = Htable.reconstruct_trees_virtual tbl rc.root in
+    let trees = Reconstruct.reconstruct_trees_virtual tbl rc.root in
     if trees <> [] then begin
       match mode with
       | Tokens ->

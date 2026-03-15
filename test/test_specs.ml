@@ -92,13 +92,13 @@ let test_roots_complete_sentence () =
 (* GCL full sentence: exactly one parse tree *)
 let test_gcl_tree_count () =
   let tbl = recognized Htable.grammar_gcl ["det"; "n"; "cl"; "v"; "det"; "n"] in
-  let trees = Htable.reconstruct_trees_omit tbl "S" in
+  let trees = Reconstruct.reconstruct_trees_omit tbl "S" in
   Alcotest.(check int) "exactly 1 GCL tree" 1 (List.length trees)
 
 (* GCL tree structure *)
 let test_gcl_tree_structure () =
   let tbl = recognized Htable.grammar_gcl ["det"; "n"; "cl"; "v"; "det"; "n"] in
-  let trees = Htable.reconstruct_trees_omit tbl "S" in
+  let trees = Reconstruct.reconstruct_trees_omit tbl "S" in
   let expected =
     Node ("S", [
       Node ("NP", [Leaf "det"; Leaf "n"]);
@@ -110,13 +110,13 @@ let test_gcl_tree_structure () =
    one collapsed via epsilon projection *)
 let test_astar_single_tree () =
   let tbl = recognized Htable.grammar_astar ["a"] in
-  let trees = Htable.reconstruct_trees_omit tbl "Astar" in
+  let trees = Reconstruct.reconstruct_trees_omit tbl "Astar" in
   Alcotest.(check int) "2 Astar trees for [a]" 2 (List.length trees)
 
 (* A-star on empty: one tree (just the epsilon node) *)
 let test_astar_empty_tree () =
   let tbl = recognized Htable.grammar_astar [] in
-  let trees = Htable.reconstruct_trees_omit tbl "Astar" in
+  let trees = Reconstruct.reconstruct_trees_omit tbl "Astar" in
   let expected = Node ("Astar", []) in
   Alcotest.(check tree_t) "Astar empty tree is epsilon node" expected
     (List.hd trees)
@@ -124,7 +124,7 @@ let test_astar_empty_tree () =
 (* Invalid input: no trees *)
 let test_gcl_no_trees_on_reject () =
   let tbl = recognized Htable.grammar_gcl ["det"; "n"] in
-  let trees = Htable.reconstruct_trees_omit tbl "S" in
+  let trees = Reconstruct.reconstruct_trees_omit tbl "S" in
   Alcotest.(check int) "no S trees for bare NP" 0 (List.length trees)
 
 (* Lisp grammar via file *)
@@ -147,7 +147,7 @@ let _test_lisp_invalid_no_trees () =
      "Invalid" inputs may now produce virtual trees via R-Reduce. *)
   let g = lisp_grammar () in
   let tbl = Recognize.recognize g ["LPAREN"; "ATOM"; "DOT"] in
-  let trees = Htable.reconstruct_trees_omit tbl "lisp_" in
+  let trees = Reconstruct.reconstruct_trees_omit tbl "lisp_" in
   Alcotest.(check int) "incomplete dotted pair: no trees" 0 (List.length trees)
 
 (* ============================================================ *)

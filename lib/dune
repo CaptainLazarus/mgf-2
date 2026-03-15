@@ -1,4 +1,4 @@
 (library
  (name practice)
  (libraries str)
- (modules types print hcover table recognize query htable domain_types grammar_reader grammar_reader_utils symbol_table grammar_converter))
+ (modules types print hcover table recognize query reconstruct htable domain_types grammar_reader grammar_reader_utils symbol_table grammar_converter))
