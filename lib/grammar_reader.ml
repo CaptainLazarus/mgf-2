@@ -85,19 +85,21 @@ let convert_to_production (prod : string) : symbol list =
 ;;
 
 let filter_content (content : string) : string list =
-  content |> String.split_on_char ';' |> List.filter is_parse_rule
+  content |> split_unquoted ';' |> List.filter is_parse_rule
 ;;
 
 let split_rules (parse_rules : string list) : (string * string) list =
   parse_rules
-  |> List.map (fun x -> String.split_on_char ':' x)
-  |> List.map (fun x -> List.nth x 0, List.nth x 1)
+  |> List.filter_map (fun x ->
+    match split_first_unquoted ':' x with
+    | None        -> None
+    | Some (l, r) -> Some (l, r))
 ;;
 
 let split_rhs (production_rules : (string * string) list) : (string * string list) list =
   production_rules
   |> List.map (fun x ->
-    String.trim (fst x), String.split_on_char '|' (snd x) |> List.map String.trim)
+    String.trim (fst x), split_unquoted '|' (snd x) |> List.map String.trim)
 ;;
 
 let convert_plus_to_star
@@ -111,12 +113,28 @@ let convert_plus_to_star
   [ base; base ^ "*" ]
 ;;
 
+(* x* appears directly in input (e.g. from inline-group expansion).
+   Generates: x* : x x* | epsilon  and returns [x*]. *)
+let convert_star_rule
+      (q : (string * string list * int option) Queue.t) (s : string) : string list =
+  if not (has_seen s) then (
+    mark_seen s;
+    let base = String.sub s 0 (String.length s - 1) in
+    Queue.add (s, [ base; s ], None) q;
+    Queue.add (s, [ "epsilon" ], None) q);
+  [ s ]
+;;
+
 let desugar_rhs
       (q : (string * string list * int option) Queue.t) (rhs : string list) : symbol list =
   let rec go acc = function
     | [] -> List.rev acc
     | x :: xs ->
-      let expanded = if ends_with_plus x then convert_plus_to_star q x else [ x ] in
+      let expanded =
+        if ends_with_plus x then convert_plus_to_star q x
+        else if ends_with_star x then convert_star_rule q x
+        else [ x ]
+      in
       go (List.rev_append expanded acc) xs
   in
   go [] rhs |> List.map convert_to_symbol
@@ -151,14 +169,21 @@ let convert_to_grammar (xs : (symbol * symbol list * int option) list) : grammar
 
 let extract_grammar_from_string (content : string) =
   reset ();
+  Grammar_expander.reset ();
   content
+  (* Strip lexer rules before expanding so group rules from lexer bodies
+     don't leak in as parser rules. *)
   |> filter_content
+  |> List.map (fun r -> r ^ " ;")
+  |> String.concat "\n"
+  |> Grammar_expander.expand
+  |> split_unquoted ';'
+  |> List.filter is_parse_rule
   |> split_rules
   |> split_rhs
   |> expand_production
-  |> fun x ->
-  (* dump x ;*)
-  desugar_production_strings x |> convert_to_grammar
+  |> desugar_production_strings
+  |> convert_to_grammar
 ;;
 
 let extract_grammar (file : string) =
