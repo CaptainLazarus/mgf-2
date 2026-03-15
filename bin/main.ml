@@ -78,10 +78,10 @@ let () =
     Grammar_reader.extract_grammar (grammar_file active_grammar)
     |> Grammar_converter.convert_grammar
   in
-  let pg = Htable.prepare grammar in
+  let pg = Recognize.prepare grammar in
   let tokens = get_tokens active_grammar in
   Printf.printf "Input: [%s]\n%!" (String.concat "; " tokens);
-  let tbl = Htable.recognize_with pg tokens in
+  let tbl = Recognize.recognize_with pg tokens in
   Print.print_visual_table tbl;
   let roots = Htable.infer_parse_roots tbl in
   print_results grammar tbl roots display_mode

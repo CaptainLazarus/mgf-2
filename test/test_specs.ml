@@ -15,7 +15,7 @@ let tree_t : Types.tree Alcotest.testable =
 
 (* --- Helpers ------------------------------------------------- *)
 
-let recognized g input = Htable.recognize g input
+let recognized g input = Recognize.recognize g input
 
 let has tbl i j item =
   Table.mem_item tbl i j (Types.CompleteItem item)
@@ -134,19 +134,19 @@ let lisp_grammar () =
 
 let test_lisp_atom_accepted () =
   let g = lisp_grammar () in
-  let tbl = Htable.recognize g ["ATOM"] in
+  let tbl = Recognize.recognize g ["ATOM"] in
   Alcotest.(check bool) "ATOM accepted as lisp_" true (Htable.is_accepted tbl)
 
 let test_lisp_dotted_pair_accepted () =
   let g = lisp_grammar () in
-  let tbl = Htable.recognize g ["LPAREN"; "ATOM"; "DOT"; "ATOM"; "RPAREN"] in
+  let tbl = Recognize.recognize g ["LPAREN"; "ATOM"; "DOT"; "ATOM"; "RPAREN"] in
   Alcotest.(check bool) "(a . b) accepted" true (Htable.is_accepted tbl)
 
 let _test_lisp_invalid_no_trees () =
   (* Skipped: behaviour for incomplete inputs is under active development.
      "Invalid" inputs may now produce virtual trees via R-Reduce. *)
   let g = lisp_grammar () in
-  let tbl = Htable.recognize g ["LPAREN"; "ATOM"; "DOT"] in
+  let tbl = Recognize.recognize g ["LPAREN"; "ATOM"; "DOT"] in
   let trees = Htable.reconstruct_trees_omit tbl "lisp_" in
   Alcotest.(check int) "incomplete dotted pair: no trees" 0 (List.length trees)
 
