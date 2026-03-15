@@ -68,7 +68,7 @@ let print_results grammar tbl roots mode =
         Printf.printf "  %s (%d):\n" rc.root (List.length trees);
         List.iteri (fun i tree ->
           Printf.printf "  Tree %d:\n" (i + 1);
-          Htable.print_tree ~grammar tree)
+          Print.print_tree ~grammar tree)
           trees
     end)
     roots
@@ -82,6 +82,6 @@ let () =
   let tokens = get_tokens active_grammar in
   Printf.printf "Input: [%s]\n%!" (String.concat "; " tokens);
   let tbl = Htable.recognize_with pg tokens in
-  Htable.print_visual_table tbl;
+  Print.print_visual_table tbl;
   let roots = Htable.infer_parse_roots tbl in
   print_results grammar tbl roots display_mode

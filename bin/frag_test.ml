@@ -13,6 +13,6 @@ let () =
   List.iter (fun input ->
     Printf.printf "\n=== Input: %s ===\n" (String.concat " " input);
     let tbl = Htable.recognize_with pg input in
-    Htable.print_root_candidates (Htable.infer_parse_roots tbl);
+    Print.print_root_candidates (Htable.infer_parse_roots tbl);
     Htable.print_trees ~grammar ~mode:"virtual" tbl grammar.start)
   inputs
