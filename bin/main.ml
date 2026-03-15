@@ -26,12 +26,12 @@ let pretty_token = function
 
 let rec collect_tokens tree =
   match tree with
-  | Htable.Leaf s -> [pretty_token s]
-  | Htable.Virtual (Htable.HTerm t) -> [pretty_token t]
-  | Htable.Virtual (Htable.HItem (Htable.CompleteItem nt)) -> [nt]
-  | Htable.Virtual (Htable.HItem (Htable.PartialItem _)) -> []
-  | Htable.Node (_, []) -> []
-  | Htable.Node (_, children) -> List.concat_map collect_tokens children
+  | Types.Leaf s -> [pretty_token s]
+  | Types.Virtual (Types.HTerm t) -> [pretty_token t]
+  | Types.Virtual (Types.HItem (Types.CompleteItem nt)) -> [nt]
+  | Types.Virtual (Types.HItem (Types.PartialItem _)) -> []
+  | Types.Node (_, []) -> []
+  | Types.Node (_, children) -> List.concat_map collect_tokens children
 
 let linearize_tree tree =
   String.concat " " (collect_tokens tree)
@@ -56,7 +56,7 @@ let get_tokens = function
   | C           -> run_java_and_read_tokens () |> List.map token_of_json
 
 let print_results grammar tbl roots mode =
-  List.iter (fun (rc : Htable.root_candidate) ->
+  List.iter (fun (rc : Types.root_candidate) ->
     let trees = Htable.reconstruct_trees_virtual tbl rc.root in
     if trees <> [] then begin
       match mode with

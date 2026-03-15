@@ -1,10 +1,11 @@
 open Practice
+open Types
 
 (* Generate every grammar obtainable by reassigning head positions.
    For a production with n symbols, head_pos ranges over 1..n (0 for epsilon). *)
-let all_head_grammars (g : Htable.grammar) : Htable.grammar list =
+let all_head_grammars (g : Types.grammar) : Types.grammar list =
   let options =
-    List.map (fun (p : Htable.production) ->
+    List.map (fun (p : Types.production) ->
       let n = List.length p.rhs in
       if n = 0 then [p]
       else List.init n (fun i -> { p with head_pos = i + 1 }))
@@ -17,18 +18,18 @@ let all_head_grammars (g : Htable.grammar) : Htable.grammar list =
   in
   List.map (fun prods -> { g with productions = prods }) (cart options)
 
-let cover_rule_count (c : Htable.h_cover) =
+let cover_rule_count (c : Types.h_cover) =
   List.length c.projections
   + List.length c.left_expansions
   + List.length c.right_expansions
   + List.length c.epsilon_projections
 
-let head_label (g : Htable.grammar) =
-  let ps = List.map (fun (p : Htable.production) ->
+let head_label (g : Types.grammar) =
+  let ps = List.map (fun (p : Types.production) ->
     string_of_int p.head_pos) g.productions in
   "(" ^ String.concat "," ps ^ ")"
 
-let run_experiment name (orig : Htable.grammar) (input : string list) =
+let run_experiment name (orig : Types.grammar) (input : string list) =
   let all = all_head_grammars orig in
   let orig_label = head_label orig in
 
@@ -56,11 +57,11 @@ let run_experiment name (orig : Htable.grammar) (input : string list) =
 
   Printf.printf "\n=== %s | input: [%s] (n=%d) | %d configs ===\n"
     name (String.concat " " input) (List.length input) (List.length all);
-  List.iter (fun (p : Htable.production) ->
+  List.iter (fun (p : Types.production) ->
     Printf.printf "  prod %d: %s -> %-20s (len=%d)\n"
       p.index p.lhs
       (String.concat " " (List.map (function
-        | Htable.Terminal t -> t | Htable.Nonterminal n -> n) p.rhs))
+        | Types.Terminal t -> t | Types.Nonterminal n -> n) p.rhs))
       (List.length p.rhs))
     orig.productions;
   Printf.printf "\n";

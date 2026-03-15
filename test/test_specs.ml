@@ -1,4 +1,5 @@
 open Practice
+open Types
 
 (* ============================================================ *)
 (*  Alcotest specs for htable recognition, root inference,      *)
@@ -7,7 +8,7 @@ open Practice
 
 (* --- Testable types ----------------------------------------- *)
 
-let tree_t : Htable.tree Alcotest.testable =
+let tree_t : Types.tree Alcotest.testable =
   Alcotest.testable
     (fun ppf _t -> Format.pp_print_string ppf "<tree>")
     (=)
@@ -17,13 +18,13 @@ let tree_t : Htable.tree Alcotest.testable =
 let recognized g input = Htable.recognize g input
 
 let has tbl i j item =
-  Htable.mem_item tbl i j (Htable.CompleteItem item)
+  Htable.mem_item tbl i j (Types.CompleteItem item)
 
 let root_names candidates =
-  List.map (fun (c : Htable.root_candidate) -> c.root) candidates
+  List.map (fun (c : Types.root_candidate) -> c.root) candidates
 
 let has_complete_root name candidates =
-  List.exists (fun (c : Htable.root_candidate) ->
+  List.exists (fun (c : Types.root_candidate) ->
     c.root = name && c.missing_left = [] && c.missing_right = [])
     candidates
 
@@ -98,11 +99,11 @@ let test_gcl_tree_count () =
 let test_gcl_tree_structure () =
   let tbl = recognized Htable.grammar_gcl ["det"; "n"; "cl"; "v"; "det"; "n"] in
   let trees = Htable.reconstruct_trees_omit tbl "S" in
-  let expected = Htable.(
+  let expected =
     Node ("S", [
       Node ("NP", [Leaf "det"; Leaf "n"]);
       Node ("VP", [Leaf "cl"; Leaf "v"; Node ("NP", [Leaf "det"; Leaf "n"])])
-    ])) in
+    ]) in
   Alcotest.(check tree_t) "GCL tree structure" expected (List.hd trees)
 
 (* A-star on single "a": two trees — one with trailing epsilon Astar node,
@@ -116,7 +117,7 @@ let test_astar_single_tree () =
 let test_astar_empty_tree () =
   let tbl = recognized Htable.grammar_astar [] in
   let trees = Htable.reconstruct_trees_omit tbl "Astar" in
-  let expected = Htable.(Node ("Astar", [])) in
+  let expected = Node ("Astar", []) in
   Alcotest.(check tree_t) "Astar empty tree is epsilon node" expected
     (List.hd trees)
 

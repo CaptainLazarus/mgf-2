@@ -1,14 +1,15 @@
 open Domain_types
+open Types
 
-let convert_symbol (s : Domain_types.symbol) : Htable.symbol option =
+let convert_symbol (s : Domain_types.symbol) : Types.symbol option =
   match s with
-  | NonTerminal name -> Some (Htable.Nonterminal name)
+  | NonTerminal name -> Some (Nonterminal name)
   | Terminal "EOF" -> None
-  | Terminal name -> Some (Htable.Terminal name)
+  | Terminal name -> Some (Terminal name)
   | Epsilon -> None
   | EOF -> None
 
-let convert_grammar (g : Domain_types.grammar) : Htable.grammar =
+let convert_grammar (g : Domain_types.grammar) : Types.grammar =
   let productions, _ =
     List.fold_left
       (fun (acc, idx) (rule : Domain_types.production_rule) ->
@@ -23,7 +24,7 @@ let convert_grammar (g : Domain_types.grammar) : Htable.grammar =
           else if rule.head_pos > 0 then rule.head_pos
           else 1
         in
-        let prod : Htable.production =
+        let prod : Types.production =
           { index = idx; lhs; rhs; head_pos }
         in
         (prod :: acc, idx + 1))
@@ -32,15 +33,15 @@ let convert_grammar (g : Domain_types.grammar) : Htable.grammar =
   let productions = List.rev productions in
   let nonterminals =
     List.sort_uniq String.compare
-      (List.map (fun (p : Htable.production) -> p.lhs) productions)
+      (List.map (fun (p : Types.production) -> p.lhs) productions)
   in
   let terminals =
     List.sort_uniq String.compare
       (List.concat_map
-         (fun (p : Htable.production) ->
+         (fun (p : Types.production) ->
            List.filter_map
              (fun s ->
-               match s with Htable.Terminal t -> Some t | _ -> None)
+               match s with Terminal t -> Some t | _ -> None)
              p.rhs)
          productions)
   in

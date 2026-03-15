@@ -1,75 +1,4 @@
-(* Types for representing context-free grammars and their head covers *)
-
-type symbol = Terminal of string | Nonterminal of string
-
-type production = {
-  index : int;
-  lhs : string;
-  rhs : symbol list;
-  head_pos : int;
-}
-
-type grammar = {
-  nonterminals : string list;
-  terminals : string list;
-  productions : production list;
-  start : string;
-}
-
-(* H-items - only reachable ones *)
-type h_item = PartialItem of int * int * int | CompleteItem of string
-type h_item_or_terminal = HItem of h_item | HTerm of string
-
-(* How an item was derived *)
-type derivation =
-  | FromTerminal of string (* Projection from terminal *)
-  | FromProject of h_item (* Projection from another item *)
-  | FromLeftExpand of
-      int * h_item_or_terminal * h_item (* split_k, left_thing, right_item *)
-  | FromRightExpand of
-      int * h_item * h_item_or_terminal (* split_k, left_item, right_thing *)
-  | FromEpsilon of h_item (* Chain production skipping nullable symbol *)
-  | FromBoundaryRight of h_item_or_terminal * h_item_or_terminal
-      (* (virtual_dropped_left, real_right): result <- virtual_left  real_right,
-         real_right is the constituent actually in T[i,j]; virtual_left is dropped
-         beyond the left input boundary *)
-  | FromBoundaryLeft of h_item_or_terminal * h_item_or_terminal
-      (* (real_left, virtual_dropped_right): result <- real_left  virtual_right,
-         real_left is the constituent actually in T[i,j]; virtual_right is dropped
-         beyond the right input boundary *)
-  | FromInductiveFill of h_item * h_item
-      (* (virtual_left, real_right): inductive fill step — real_right is the right
-         child spanning [i,j]; virtual_left is the inferred/missing left sibling *)
-  | FromInductiveFillRight of h_item * h_item_or_terminal
-      (* (real_left, virtual_right): R-Reduce step — real_left is the left child
-         spanning [i,j]; virtual_right is the inferred/missing right sibling *)
-
-(* The h-cover structure *)
-type h_cover = {
-  items : h_item list;
-  projections : (h_item * h_item_or_terminal) list;
-  left_expansions : (h_item * h_item_or_terminal * h_item) list;
-  right_expansions : (h_item * h_item * h_item_or_terminal) list;
-  epsilon_projections : (h_item * h_item) list;
-    (* (result_item, source_item) — chain: result_item -> source_item, skipping nullable *)
-}
-
-(* Recognition table entry - now with backpointers *)
-type table_entry = {
-  mutable items : (h_item * derivation list) list;
-      (* each item with its derivations *)
-  mutable blocked_left : (h_item * int * int) list;
-  mutable blocked_right : (h_item * int * int) list;
-}
-
-(* The recognition table *)
-type rec_table = {
-  n : int;
-  entries : table_entry array array;
-  input : string array;
-  grammar : grammar;
-  cover : h_cover;
-}
+open Types
 
 (* Pretty printing *)
 
@@ -704,12 +633,6 @@ let recognize_tbl (tbl : rec_table) : rec_table =
 let recognize (g : grammar) (input : string list) : rec_table =
   recognize_tbl (create_table g input)
 
-(* Pre-compiled grammar: H-cover computed once, reused across all inputs *)
-type prepared_grammar = {
-  pg_grammar : grammar;
-  pg_cover   : h_cover;
-}
-
 let prepare (g : grammar) : prepared_grammar =
   { pg_grammar = g; pg_cover = compute_h_cover g }
 
@@ -904,23 +827,6 @@ let count_table_items tbl =
     done
   done;
   !total
-
-(* Parse tree type.
-   - Node (nt, children) : original grammar nonterminal with its sub-trees
-   - Leaf t              : matched terminal token
-   - Virtual x           : constituent dropped at input boundary (kept for
-                           structural completeness; x carries full type info) *)
-type tree =
-  | Node of string * tree list
-  | Leaf of string
-  | Virtual of h_item_or_terminal
-
-(* Root inference *)
-type root_candidate = {
-  root : string;
-  missing_left : symbol list;
-  missing_right : symbol list;
-}
 
 let find_production tbl r =
   List.find (fun p -> p.index = r) tbl.grammar.productions
