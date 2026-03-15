@@ -83,11 +83,11 @@ let run_experiment name (orig : Types.grammar) (input : string list) =
 
 let () =
   run_experiment "GCL"
-    Htable.grammar_gcl
+    Grammars.grammar_gcl
     ["det"; "n"; "cl"; "v"; "det"; "n"];
   run_experiment "Arith"
-    Htable.grammar_arith
+    Grammars.grammar_arith
     ["n"; "+"; "n"; "+"; "n"];
   run_experiment "Astar"
-    Htable.grammar_astar
+    Grammars.grammar_astar
     ["a"; "a"; "a"]
