@@ -9,7 +9,7 @@ let active_grammar = C
   (* Lisp ["RPAREN"; "RPAREN"; "RPAREN"] *)
 let display_mode   = Output.Trees
 
-let grammar_file = function Lisp _ -> "grammars/lisp.g4" | C -> "grammars/c_simple.g4"
+let grammar_file = function Lisp _ -> "grammars/lisp.g4" | C -> "grammars/cparser.g4"
 let get_tokens   = function Lisp ts -> ts | C -> Io.tokens_from_java ()
 
 let () =
@@ -20,5 +20,5 @@ let () =
   grammar
   |> Recognize.prepare
   |> fun pg -> Recognize.recognize_with pg tokens
-  |> Htable.show ~roots:true
+  |> Htable.show ~roots:true ~grammar:true ~cover:true
   |> fun tbl -> Output.print_results ~grammar tbl (Query.infer_parse_roots tbl) display_mode

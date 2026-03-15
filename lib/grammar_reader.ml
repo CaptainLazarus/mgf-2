@@ -68,7 +68,11 @@ let expand_production (production_rules : (string * string list) list) =
 ;;
 
 let convert_to_symbol (s : string) : symbol =
-  if starts_with_single_quote_or_is_uppercase s
+  let n = String.length s in
+  (* Generated star-rule names like StringLiteral_star must be NonTerminal
+     even when the base name starts uppercase. *)
+  if n > 0 && s.[n - 1] = '*' then NonTerminal s
+  else if starts_with_single_quote_or_is_uppercase s
   then
     if starts_with_single_quote s
     then Terminal (String.sub s 1 (String.length s - 2))
