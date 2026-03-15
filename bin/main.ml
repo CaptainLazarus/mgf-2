@@ -40,6 +40,21 @@ type display_mode = Tokens | Trees [@@warning "-37"]
 
 let display_mode = Trees
 
+type grammar_choice =
+  | Lisp  of string list   (* tokens supplied directly *)
+  | C                      (* tokens from Java/CLexer pipeline *)
+[@@warning "-37"]
+
+let active_grammar = Lisp ["RPAREN" ; "RPAREN" ; "RPAREN"]
+
+let grammar_file = function
+  | Lisp _ -> "grammars/lisp.g4"
+  | C       -> "grammars/c_simple.g4"
+
+let get_tokens = function
+  | Lisp tokens -> tokens
+  | C           -> run_java_and_read_tokens () |> List.map token_of_json
+
 let print_results grammar tbl roots mode =
   List.iter (fun (rc : Htable.root_candidate) ->
     let trees = Htable.reconstruct_trees_virtual tbl rc.root in
@@ -60,11 +75,11 @@ let print_results grammar tbl roots mode =
 
 let () =
   let grammar =
-    Grammar_reader.extract_grammar "grammars/lisp.g4"
+    Grammar_reader.extract_grammar (grammar_file active_grammar)
     |> Grammar_converter.convert_grammar
   in
   let pg = Htable.prepare grammar in
-  let tokens = run_java_and_read_tokens () |> List.map token_of_json in
+  let tokens = get_tokens active_grammar in
   Printf.printf "Input: [%s]\n%!" (String.concat "; " tokens);
   let tbl = Htable.recognize_with pg tokens in
   Htable.print_visual_table tbl;
