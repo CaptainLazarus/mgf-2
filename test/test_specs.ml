@@ -18,7 +18,7 @@ let tree_t : Types.tree Alcotest.testable =
 let recognized g input = Htable.recognize g input
 
 let has tbl i j item =
-  Htable.mem_item tbl i j (Types.CompleteItem item)
+  Table.mem_item tbl i j (Types.CompleteItem item)
 
 let root_names candidates =
   List.map (fun (c : Types.root_candidate) -> c.root) candidates
