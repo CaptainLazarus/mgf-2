@@ -5,7 +5,8 @@ type grammar_choice =
   | C
 [@@warning "-37"]
 
-let active_grammar = Lisp ["RPAREN"; "RPAREN"; "RPAREN"]
+let active_grammar = C
+  (* Lisp ["RPAREN"; "RPAREN"; "RPAREN"] *)
 let display_mode   = Output.Trees
 
 let grammar_file = function Lisp _ -> "grammars/lisp.g4" | C -> "grammars/c_simple.g4"
@@ -19,6 +20,5 @@ let () =
   grammar
   |> Recognize.prepare
   |> fun pg -> Recognize.recognize_with pg tokens
-  |> fun tbl ->
-       Print.print_visual_table tbl;
-       Output.print_results ~grammar tbl (Query.infer_parse_roots tbl) display_mode
+  |> Htable.show ~roots:true
+  |> fun tbl -> Output.print_results ~grammar tbl (Query.infer_parse_roots tbl) display_mode

@@ -40,11 +40,9 @@ let print_result tbl =
         complete));
   Printf.printf "+%s+\n" (String.make 60 '-')
 
-let run_and_print
-    ?(grammar=false) ?(cover=false) ?(table=true)
-    ?(cells=false) ?(result=false) ?(roots=false)
-    g input =
-  let tbl = recognize g input in
+let show ?(grammar=false) ?(cover=false) ?(table=true)
+         ?(cells=false) ?(result=false) ?(roots=false) tbl =
+  let g = tbl.grammar in
   if grammar then (print_grammar g; print_newline ());
   if cover   then (print_cover_summary tbl.cover; print_newline ());
   if table   then print_visual_table tbl;
@@ -52,4 +50,7 @@ let run_and_print
   if result  then (print_result tbl; print_newline ());
   if roots   then (print_root_candidates (infer_parse_roots tbl); print_newline ());
   tbl
+
+let run_and_print ?grammar ?cover ?table ?cells ?result ?roots g input =
+  recognize g input |> show ?grammar ?cover ?table ?cells ?result ?roots
 
