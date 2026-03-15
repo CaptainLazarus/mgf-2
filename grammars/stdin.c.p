@@ -49,4 +49,4 @@
 # 1 "grammars/stdin.c"
 
 # 1 "grammars/stdin.c"
-((((
+a + b

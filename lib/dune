@@ -1,4 +1,4 @@
 (library
  (name practice)
  (libraries str)
- (modules types print dp cyk hcover htable domain_types grammar_reader grammar_reader_utils symbol_table grammar_converter))
+ (modules types print htable domain_types grammar_reader grammar_reader_utils symbol_table grammar_converter))

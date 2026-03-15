@@ -25,10 +25,13 @@ Assumptions
 +---+-------+--------+---------------------+-------+---------------------+---------------------+---------------------+
 
 
+A -> X RPAREN
+A -> RPAREN X
+
 
 
 |i\j|   1    |          2          |   3   |          4          |          5          |   6    |
-|   | LPAREN |        ATOM         |  DOT  |        ATOM         |       RPAREN        | RPAREN |
+|   | RPAREN |        ATOM         |  DOT  |        ATOM         |       RPAREN        | RPAREN |
 +===+========+=====================+=======+=====================+=====================+========+
 | 0 | 3^0,1  |        3^0,2        | 3^0,3 |        3^0,4        | lisp_, s_expression |   .    |
 +---+--------+---------------------+-------+---------------------+---------------------+--------+
@@ -44,5 +47,23 @@ Assumptions
 +---+--------+---------------------+-------+---------------------+---------------------+--------+
 
 
-1. Check head issues
-2. Check the actual algo.
+1. Check head issues [x]
+2. Check the actual algo. [x]
+3. Print out the identifier -> Readable but deterministic (all information smaller characters)
+4. Test out where it breaks and where it doesn't
+5. Proper definition of plus Productions -> s+ -> s s+
+
+RPAREN--> {NT}
+
+(({NT} RPAREN ) RPAREN ) RPAREN
+
+{NT2} RPAREN RPAREN
+
+LPAERN LPAERN LPAERN
+
+(LPAERN (LPAERN {NT1}))
+
+T[0,k] is empty --> Inductive
+
+{NT1} RPAREN --> NT1 -> {NT1'} {RPAREN'} --> 
+
