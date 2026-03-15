@@ -19,26 +19,7 @@ let run_java_and_read_tokens () =
 
 let token_of_json j = j |> member "token" |> to_string
 
-let pretty_token = function
-  | "LPAREN" -> "(" | "RPAREN" -> ")"
-  | "DOT"    -> "." | "ATOM"   -> "ATOM"
-  | s -> s
-
-let rec collect_tokens tree =
-  match tree with
-  | Types.Leaf s -> [pretty_token s]
-  | Types.Virtual (Types.HTerm t) -> [pretty_token t]
-  | Types.Virtual (Types.HItem (Types.CompleteItem nt)) -> [nt]
-  | Types.Virtual (Types.HItem (Types.PartialItem _)) -> []
-  | Types.Node (_, []) -> []
-  | Types.Node (_, children) -> List.concat_map collect_tokens children
-
-let linearize_tree tree =
-  String.concat " " (collect_tokens tree)
-
-type display_mode = Tokens | Trees [@@warning "-37"]
-
-let display_mode = Trees
+let display_mode = Output.Trees
 
 type grammar_choice =
   | Lisp  of string list   (* tokens supplied directly *)
@@ -55,23 +36,6 @@ let get_tokens = function
   | Lisp tokens -> tokens
   | C           -> run_java_and_read_tokens () |> List.map token_of_json
 
-let print_results grammar tbl roots mode =
-  List.iter (fun (rc : Types.root_candidate) ->
-    let trees = Reconstruct.reconstruct_trees_virtual tbl rc.root in
-    if trees <> [] then begin
-      match mode with
-      | Tokens ->
-        let lines = List.sort_uniq String.compare (List.map linearize_tree trees) in
-        Printf.printf "  %s (%d unique):\n" rc.root (List.length lines);
-        List.iter (fun line -> Printf.printf "    %s\n" line) lines
-      | Trees ->
-        Printf.printf "  %s (%d):\n" rc.root (List.length trees);
-        List.iteri (fun i tree ->
-          Printf.printf "  Tree %d:\n" (i + 1);
-          Print.print_tree ~grammar tree)
-          trees
-    end)
-    roots
 
 let () =
   let grammar =
@@ -84,4 +48,4 @@ let () =
   let tbl = Recognize.recognize_with pg tokens in
   Print.print_visual_table tbl;
   let roots = Query.infer_parse_roots tbl in
-  print_results grammar tbl roots display_mode
+  Output.print_results ~grammar tbl roots display_mode
