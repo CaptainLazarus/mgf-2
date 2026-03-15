@@ -83,5 +83,5 @@ let () =
   Printf.printf "Input: [%s]\n%!" (String.concat "; " tokens);
   let tbl = Recognize.recognize_with pg tokens in
   Print.print_visual_table tbl;
-  let roots = Htable.infer_parse_roots tbl in
+  let roots = Query.infer_parse_roots tbl in
   print_results grammar tbl roots display_mode

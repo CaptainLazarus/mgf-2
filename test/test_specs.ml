@@ -34,11 +34,11 @@ let has_complete_root name candidates =
 
 let test_gcl_accepted () =
   let tbl = recognized Htable.grammar_gcl ["det"; "n"; "cl"; "v"; "det"; "n"] in
-  Alcotest.(check bool) "full sentence accepted" true (Htable.is_accepted tbl)
+  Alcotest.(check bool) "full sentence accepted" true (Query.is_accepted tbl)
 
 let test_gcl_rejected () =
   let tbl = recognized Htable.grammar_gcl ["det"; "n"] in
-  Alcotest.(check bool) "bare NP rejected" false (Htable.is_accepted tbl)
+  Alcotest.(check bool) "bare NP rejected" false (Query.is_accepted tbl)
 
 let test_gcl_np_in_cell () =
   let tbl = recognized Htable.grammar_gcl ["det"; "n"] in
@@ -46,20 +46,20 @@ let test_gcl_np_in_cell () =
 
 let test_epsilon_ab_accepted () =
   let tbl = recognized Htable.grammar_epsilon ["a"; "b"] in
-  Alcotest.(check bool) "a b accepted" true (Htable.is_accepted tbl)
+  Alcotest.(check bool) "a b accepted" true (Query.is_accepted tbl)
 
 let test_epsilon_b_accepted () =
   (* A is nullable, so S -> A B with just "b" should be accepted *)
   let tbl = recognized Htable.grammar_epsilon ["b"] in
-  Alcotest.(check bool) "b accepted (A nullable)" true (Htable.is_accepted tbl)
+  Alcotest.(check bool) "b accepted (A nullable)" true (Query.is_accepted tbl)
 
 let test_astar_nonempty_accepted () =
   let tbl = recognized Htable.grammar_astar ["a"; "a"; "a"] in
-  Alcotest.(check bool) "a a a accepted" true (Htable.is_accepted tbl)
+  Alcotest.(check bool) "a a a accepted" true (Query.is_accepted tbl)
 
 let test_astar_empty_accepted () =
   let tbl = recognized Htable.grammar_astar [] in
-  Alcotest.(check bool) "empty accepted (star)" true (Htable.is_accepted tbl)
+  Alcotest.(check bool) "empty accepted (star)" true (Query.is_accepted tbl)
 
 (* ============================================================ *)
 (*  Suite 2 — Root inference                                    *)
@@ -68,20 +68,20 @@ let test_astar_empty_accepted () =
 let test_roots_np_complete () =
   (* "det n" fully parses as NP *)
   let tbl = recognized Htable.grammar_gcl ["det"; "n"] in
-  let roots = Htable.infer_parse_roots tbl in
+  let roots = Query.infer_parse_roots tbl in
   Alcotest.(check bool) "NP is a complete root" true
     (has_complete_root "NP" roots)
 
 let test_roots_s_partial () =
   (* "det n" gives NP but not S; S should appear as partial *)
   let tbl = recognized Htable.grammar_gcl ["det"; "n"] in
-  let roots = Htable.infer_parse_roots tbl in
+  let roots = Query.infer_parse_roots tbl in
   Alcotest.(check bool) "S appears in root inference" true
     (List.mem "S" (root_names roots))
 
 let test_roots_complete_sentence () =
   let tbl = recognized Htable.grammar_gcl ["det"; "n"; "cl"; "v"; "det"; "n"] in
-  let roots = Htable.infer_parse_roots tbl in
+  let roots = Query.infer_parse_roots tbl in
   Alcotest.(check bool) "S is complete root for full sentence" true
     (has_complete_root "S" roots)
 
@@ -135,12 +135,12 @@ let lisp_grammar () =
 let test_lisp_atom_accepted () =
   let g = lisp_grammar () in
   let tbl = Recognize.recognize g ["ATOM"] in
-  Alcotest.(check bool) "ATOM accepted as lisp_" true (Htable.is_accepted tbl)
+  Alcotest.(check bool) "ATOM accepted as lisp_" true (Query.is_accepted tbl)
 
 let test_lisp_dotted_pair_accepted () =
   let g = lisp_grammar () in
   let tbl = Recognize.recognize g ["LPAREN"; "ATOM"; "DOT"; "ATOM"; "RPAREN"] in
-  Alcotest.(check bool) "(a . b) accepted" true (Htable.is_accepted tbl)
+  Alcotest.(check bool) "(a . b) accepted" true (Query.is_accepted tbl)
 
 let _test_lisp_invalid_no_trees () =
   (* Skipped: behaviour for incomplete inputs is under active development.

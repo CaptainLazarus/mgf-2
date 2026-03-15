@@ -38,7 +38,7 @@ let run_experiment name (orig : Types.grammar) (input : string list) =
     List.map (fun g ->
       let c    = Hcover.compute_h_cover g in
       let tbl  = Recognize.recognize g input in
-      (cover_rule_count c, Htable.count_table_items tbl, head_label g))
+      (cover_rule_count c, Query.count_table_items tbl, head_label g))
       all
   in
 
