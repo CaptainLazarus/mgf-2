@@ -136,3 +136,85 @@ where $|alpha' A gamma'| < |omega|$, guaranteeing termination.
 
 A _final_ nonterminal $F$ is any $A in R(omega)$ such that $A$ spans the entire input — i.e. no unreduced symbols remain. $F$ need not be the start symbol $S$; any nonterminal covering $omega$ constitutes a valid parse result.
 
+= Algorithm
+
+== Recognition Table
+
+Let $omega = w_1 w_2 dots w_n$ be the input string. The _recognition table_ $T$ is an $(n+1) times (n+1)$ array of sets, where $T[i,j]$ contains _items_ representing partial or complete derivations over the span $[i, j]$ (i.e. over $w_{i+1} dots w_j$).
+
+There are two kinds of items:
+
+- A _complete item_ $I_A$ asserts that nonterminal $A$ derives $w_{i+1} dots w_j$.
+- A _partial item_ $I_r^(s,t)$ asserts that production $r$ has been partially assembled: symbols $Z_{r,s+1} dots Z_{r,t}$ (the head-adjacent slice) derive $w_{i+1} dots w_j$, and the remaining symbols $Z_{r,1} dots Z_{r,s}$ and $Z_{r,t+1} dots Z_{r,pi_r}$ are yet to be combined.
+
+== H-Cover
+
+The _H-cover_ $cal(H)(G)$ pre-computes all valid item-to-item relationships from the grammar. It consists of:
+
+- *Projections* $(I_A, xi)$: item $I_A$ can be projected from child $xi$, where $xi$ is either a terminal or another item.
+- *Left expansions* $(I, xi, I')$: item $I$ can be formed by combining left child $xi$ with right child $I'$.
+- *Right expansions* $(I, I', xi)$: item $I$ can be formed by combining left child $I'$ with right child $xi$.
+
+The cover is computed once per grammar and reused across all inputs.
+
+== Agenda Algorithm
+
+The algorithm maintains a queue (agenda) of items to process. When item $I$ is added to $T[i,j]$ for the first time, it is pushed onto the agenda.
+
+Processing item $I$ at $T[i,j]$ applies four rules:
+
++ *Project:* for each $(I', I) in$ projections, add $I'$ to $T[i,j]$.
++ *Left-expand:* for each $(I', xi, I) in$ left-expansions, find all $i' <= i$ such that $xi in T[i',i]$, and add $I'$ to $T[i',j]$.
++ *Right-expand:* for each $(I', I, xi) in$ right-expansions, find all $j' >= j$ such that $xi in T[j,j']$, and add $I'$ to $T[i,j']$.
++ *Reverse lookups:* symmetric to 2 and 3 — when $I$ could be the partner already in the table, scan for items waiting on $I$.
+
+The algorithm terminates because $T$ is finite and each item is enqueued at most once.
+
+== Correctness
+
+*Theorem:* If the grammar licenses a derivation spanning $omega$ (with possible gaps), the algorithm finds it — i.e. a valid item appears in $T[0,n]$.
+
+The proof proceeds in two parts, one for each fill direction.
+
+=== Part 1 — Forward (prefix) induction
+
+*Claim:* If $T[0,k]$ contains a valid item, then $T[0,k+1]$ contains a valid item, provided the grammar licenses one.
+
+_Base ($k = 0$):_ $T[0,0]$ is seeded with complete items $I_A$ for all $A \in cal(N)_G$ (epsilon nonterminals). Valid by definition.
+
+_Base ($k = 1$):_ $T[0,1]$ is seeded by projecting $w_1$ to its licensed items, plus boundary stuffing: for any cover rule $I' <- xi space I$ where $xi$ is absent from the input, $I'$ is injected into $T[0,1]$ with $xi$ marked virtual. Valid by construction.
+
+_Step:_ Assume $T[0,k]$ contains valid items. Terminal $w_{k+1}$ seeds $T[k, k+1]$. The agenda combines items from $T[0,k]$ with items from $T[k, k+1]$ via right-expand, producing items in $T[0, k+1]$. The inductive fill then closes over $T[0,k]$: for each item $b in T[0,k]$, any cover rule licensing $b$ as a right child (with left sibling virtual) adds its parent to $T[0,k]$, which the agenda then propagates into $T[0,k+1]$. Each added item is cover-licensed, so validity is preserved. $square$
+
+=== Part 2 — Backward (suffix) induction
+
+Triggered only if $T[0,n]$ is empty after Part 1 — i.e. no full-span item was reached from the left alone.
+
+*Claim:* If $T[k,n]$ contains a valid item, then $T[k-1,n]$ contains a valid item, provided the grammar licenses one.
+
+_Base ($k = n$):_ $T[n,n]$ is seeded with epsilon items. $T[n-1,n]$ is seeded by projecting $w_n$ plus right-boundary stuffing: for any cover rule $I' <- I space xi$ where $xi$ is absent, $I'$ is injected with $xi$ virtual.
+
+_Step:_ Assume $T[k,n]$ contains valid items. Terminal $w_k$ seeds $T[k-1,k]$. The agenda combines items from $T[k-1,k]$ with items from $T[k,n]$ via left-expand, producing items in $T[k-1,n]$. The inductive fill closes over $T[k,n]$ symmetrically, propagating into $T[k-1,n]$. Validity preserved. $square$
+
+=== Convergence
+
+After both passes, a final closure is run on $T[0,n]$ — applying the same fill logic to whatever the two inductions deposited there. Any item reachable by combining prefix and suffix derivations is found at this step.
+
+Together, Parts 1 and 2 guarantee that $T[0,n]$ contains a valid item whenever the grammar licenses a derivation over $omega$, regardless of which direction the fragment is approached from.
+
+#block(fill: luma(235), inset: 10pt, radius: 4pt)[
+  *Remark (sequential vs. simultaneous passes).* The backward pass is an implementation choice — it fires only if $T[0,n]$ is empty after the forward pass. A simultaneous version (running both directions together, with items from each pass feeding the other) is possible and may find derivations that neither pass finds in isolation. The interaction between the two directions is currently unanalysed.
+]
+
+== Tree Pruning
+
+Recognition populates $T[0,n]$ with items and their derivations. Tree reconstruction follows derivation pointers back through the table, producing a parse forest. For ambiguous grammars or fragment inputs this forest can be exponentially large.
+
+*Open problem:* the forest must be pruned to be useful. Two criteria are relevant:
+
++ *Gap minimisation:* trees with fewer virtual (dropped) constituents are better parses of the fragment — a tree with no gaps is a complete parse. Trees should be ranked or filtered by gap count.
+
++ *Structural plausibility:* among trees with equal gap count, some are more plausible parses than others depending on where the gaps fall (e.g. a missing right argument is more natural than a missing head). A scoring scheme over gap positions is needed.
+
+Neither criterion is currently enforced — the implementation returns all trees up to a fixed cap. A principled pruning strategy is future work.
+

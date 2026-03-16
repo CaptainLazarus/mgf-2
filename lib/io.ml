@@ -20,7 +20,7 @@ let build_clexer_map (path : string) : (string, string) Hashtbl.t =
   (try while true do
     let line = String.trim (input_line ic) in
     if line <> "" then
-      match String.index_opt line '=' with
+      match String.rindex_opt line '=' with
       | None -> ()
       | Some eq ->
         let key = String.sub line 0 eq in
@@ -44,10 +44,12 @@ let build_clexer_map (path : string) : (string, string) Hashtbl.t =
 
 let clexer_map = lazy (build_clexer_map "grammars/CLexer.tokens")
 
-let normalize_token t =
-  match Hashtbl.find_opt (Lazy.force clexer_map) t with
+let normalize_token_with map t =
+  match Hashtbl.find_opt map t with
   | Some lit -> lit
   | None     -> t
+
+let normalize_token t = normalize_token_with (Lazy.force clexer_map) t
 
 let run_java_and_read_tokens () =
   let ic =
