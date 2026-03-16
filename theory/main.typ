@@ -152,55 +152,65 @@ There are two kinds of items:
 The _H-cover_ $cal(H)(G)$ pre-computes all valid item-to-item relationships from the grammar. It consists of:
 
 - *Projections* $(I_A, xi)$: item $I_A$ can be projected from child $xi$, where $xi$ is either a terminal or another item.
-- *Left expansions* $(I, xi, I')$: item $I$ can be formed by combining left child $xi$ with right child $I'$.
-- *Right expansions* $(I, I', xi)$: item $I$ can be formed by combining left child $I'$ with right child $xi$.
+- *Left expansions* $(I, xi, I')$: $I'$ is the trigger — the known right child already in the table. $xi$ is the left child to be found elsewhere in the table. When both are present, the result $I$ spans further left than $I'$.
+- *Right expansions* $(I, I', xi)$: $I'$ is the trigger — the known left child already in the table. $xi$ is the right child to be found elsewhere in the table. When both are present, the result $I$ spans further right than $I'$.
 
 The cover is computed once per grammar and reused across all inputs.
 
 == Agenda Algorithm
 
-The algorithm maintains a queue (agenda) of items to process. When item $I$ is added to $T[i,j]$ for the first time, it is pushed onto the agenda.
+The algorithm maintains a queue (agenda) of items to process. When item $I'$ is added to $T[i,j]$ for the first time, it is pushed onto the agenda.
 
-Processing item $I$ at $T[i,j]$ applies four rules:
+Processing item $I'$ at $T[i,j]$ applies four rules:
 
-+ *Project:* for each $(I', I) in$ projections, add $I'$ to $T[i,j]$.
-+ *Left-expand:* for each $(I', xi, I) in$ left-expansions, find all $i' <= i$ such that $xi in T[i',i]$, and add $I'$ to $T[i',j]$.
-+ *Right-expand:* for each $(I', I, xi) in$ right-expansions, find all $j' >= j$ such that $xi in T[j,j']$, and add $I'$ to $T[i,j']$.
-+ *Reverse lookups:* symmetric to 2 and 3 — when $I$ could be the partner already in the table, scan for items waiting on $I$.
++ *Project:* for each $(I, I') in$ projections, add $I$ to $T[i,j]$.
++ *Left-expand:* for each $(I, xi, I') in$ left-expansions, find all $i' <= i$ such that $xi in T[i',i]$, and add $I$ to $T[i',j]$.
++ *Right-expand:* for each $(I, I', xi) in$ right-expansions, find all $j' >= j$ such that $xi in T[j,j']$, and add $I$ to $T[i,j']$.
++ *Reverse lookups:* In rules 2 and 3, $I'$ is the trigger and $xi$ is what we look for. Rule 4 handles the symmetric case: $I'$ is the child that was being looked for. Scan the table for items that could serve as the trigger, and for each match add the result $I$.
+
+#block(fill: luma(235), inset: 10pt, radius: 4pt)[
+  *Example.* Take $A -> B C$ with head $C$. The cover gives left-expansion $I_A -> I_B space I_r^((1,2))$, where $I_r^((1,2))$ is the known right child and $I_B$ is $xi$.
+
+  - *Rule 2 (left-expand):* $I_r^((1,2))$ arrives at $T[1,2]$. Scan left for $I_B$ at $T[0,1]$. If found, add $I_A$ to $T[0,2]$.
+
+  - *Rule 4 (reverse):* Suppose $I_B$ arrives at $T[0,1]$ _after_ $I_r^((1,2))$ was already processed — rule 2 already fired and found nothing. Now $I_B$ is the trigger. It is the $xi$ for the left-expansion above, so scan _right_ for $I_r^((1,2))$ at $T[1,j]$. Found at $T[1,2]$. Add $I_A$ to $T[0,2]$.
+
+  Rules 2 and 4 together ensure $I_A$ is found regardless of which child arrives first. The same pairing holds for right-expand (rule 3) and its reverse.
+]
 
 The algorithm terminates because $T$ is finite and each item is enqueued at most once.
 
 == Correctness
 
-*Theorem:* If the grammar licenses a derivation spanning $omega$ (with possible gaps), the algorithm finds it — i.e. a valid item appears in $T[0,n]$.
+*Theorem:* If there exists a nonterminal $A in N$ and a derivation tree rooted at $A$ whose yield (with zero or more leaves replaced by virtual gap symbols) equals $omega$, then a valid item appears in $T[0,n]$ after the algorithm completes.
 
 The proof proceeds in two parts, one for each fill direction.
 
 === Part 1 — Forward (prefix) induction
 
-*Claim:* If $T[0,k]$ contains a valid item, then $T[0,k+1]$ contains a valid item, provided the grammar licenses one.
+*Claim:* If $T[0,k]$ contains a valid item, then $T[0,k+1]$ contains a valid item — provided there exists a production $r in P$ and a nonterminal $A in N$ such that $A =>_r^* w_1 dots w_{k+1}$ (with possible gaps).
 
-_Base ($k = 0$):_ $T[0,0]$ is seeded with complete items $I_A$ for all $A \in cal(N)_G$ (epsilon nonterminals). Valid by definition.
+_Base ($k = 0$):_ $T[0,0]$ is seeded with complete items $I_A$ for all $A in cal(N)_G$ (epsilon nonterminals). Valid by definition.
 
-_Base ($k = 1$):_ $T[0,1]$ is seeded by projecting $w_1$ to its licensed items, plus boundary stuffing: for any cover rule $I' <- xi space I$ where $xi$ is absent from the input, $I'$ is injected into $T[0,1]$ with $xi$ marked virtual. Valid by construction.
+_Base ($k = 1$):_ $T[0,1]$ is seeded by projecting $w_1$ to its licensed items, plus boundary stuffing: for any cover rule $I' <- xi space I$ where $xi$ has no corresponding span in the input, $I'$ is injected into $T[0,1]$ with $xi$ marked virtual. Valid by construction.
 
-_Step:_ Assume $T[0,k]$ contains valid items. Terminal $w_{k+1}$ seeds $T[k, k+1]$. The agenda combines items from $T[0,k]$ with items from $T[k, k+1]$ via right-expand, producing items in $T[0, k+1]$. The inductive fill then closes over $T[0,k]$: for each item $b in T[0,k]$, any cover rule licensing $b$ as a right child (with left sibling virtual) adds its parent to $T[0,k]$, which the agenda then propagates into $T[0,k+1]$. Each added item is cover-licensed, so validity is preserved. $square$
+_Step:_ Assume $T[0,k]$ contains valid items. Terminal $w_{k+1}$ seeds $T[k, k+1]$. The agenda combines items from $T[0,k]$ with items from $T[k, k+1]$ via right-expand, producing items in $T[0, k+1]$. The inductive fill then closes over $T[0,k]$: for each item $b in T[0,k]$, any cover rule of the form $I' <- xi space b$ (where $xi$ is absent from the input) adds $I'$ to $T[0,k]$, which the agenda then propagates into $T[0,k+1]$. Each added item corresponds to a production in $P$, so validity is preserved. $square$
 
 === Part 2 — Backward (suffix) induction
 
 Triggered only if $T[0,n]$ is empty after Part 1 — i.e. no full-span item was reached from the left alone.
 
-*Claim:* If $T[k,n]$ contains a valid item, then $T[k-1,n]$ contains a valid item, provided the grammar licenses one.
+*Claim:* If $T[k,n]$ contains a valid item, then $T[k-1,n]$ contains a valid item — provided there exists a production $r in P$ and a nonterminal $A in N$ such that $A =>_r^* w_k dots w_n$ (with possible gaps).
 
 _Base ($k = n$):_ $T[n,n]$ is seeded with epsilon items. $T[n-1,n]$ is seeded by projecting $w_n$ plus right-boundary stuffing: for any cover rule $I' <- I space xi$ where $xi$ is absent, $I'$ is injected with $xi$ virtual.
 
-_Step:_ Assume $T[k,n]$ contains valid items. Terminal $w_k$ seeds $T[k-1,k]$. The agenda combines items from $T[k-1,k]$ with items from $T[k,n]$ via left-expand, producing items in $T[k-1,n]$. The inductive fill closes over $T[k,n]$ symmetrically, propagating into $T[k-1,n]$. Validity preserved. $square$
+_Step:_ Assume $T[k,n]$ contains valid items. Terminal $w_k$ seeds $T[k-1,k]$. The agenda combines items from $T[k-1,k]$ with items from $T[k,n]$ via left-expand, producing items in $T[k-1,n]$. The inductive fill closes over $T[k,n]$: for each item $b in T[k,n]$, any cover rule $I' <- b space xi$ (where $xi$ is absent) adds $I'$ to $T[k,n]$, propagating into $T[k-1,n]$. Each added item corresponds to a production in $P$. $square$
 
 === Convergence
 
 After both passes, a final closure is run on $T[0,n]$ — applying the same fill logic to whatever the two inductions deposited there. Any item reachable by combining prefix and suffix derivations is found at this step.
 
-Together, Parts 1 and 2 guarantee that $T[0,n]$ contains a valid item whenever the grammar licenses a derivation over $omega$, regardless of which direction the fragment is approached from.
+Together, Parts 1 and 2 guarantee that $T[0,n]$ contains a valid item whenever there exists $A in N$ and a derivation $A =>^* omega'$ where $omega'$ equals $omega$ with zero or more symbols replaced by gaps — regardless of which direction the fragment is approached from.
 
 #block(fill: luma(235), inset: 10pt, radius: 4pt)[
   *Remark (sequential vs. simultaneous passes).* The backward pass is an implementation choice — it fires only if $T[0,n]$ is empty after the forward pass. A simultaneous version (running both directions together, with items from each pass feeding the other) is possible and may find derivations that neither pass finds in isolation. The interaction between the two directions is currently unanalysed.

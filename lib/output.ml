@@ -2,41 +2,106 @@ open Types
 open Print
 open Reconstruct
 
+(* ------------------------------------------------------------------ *)
+(* Linearisation                                                       *)
+(* ------------------------------------------------------------------ *)
+
 let pretty_token = function
   | "LPAREN" -> "(" | "RPAREN" -> ")"
   | "DOT"    -> "." | "ATOM"   -> "ATOM"
   | s -> s
 
-let rec collect_tokens tree =
+let rec collect_tokens ~virtuals tree =
   match tree with
   | Leaf s -> [pretty_token s]
-  | Virtual (HTerm t) -> [pretty_token t]
-  | Virtual (HItem (CompleteItem nt)) -> [nt]
+  | Virtual _ when not virtuals -> []
+  | Virtual (HTerm t) -> [Printf.sprintf "<%s>" (pretty_token t)]
+  | Virtual (HItem (CompleteItem nt)) -> [Printf.sprintf "<%s>" nt]
   | Virtual (HItem (PartialItem _)) -> []
   | Node (_, []) -> []
-  | Node (_, children) -> List.concat_map collect_tokens children
+  | Node (_, children) -> List.concat_map (collect_tokens ~virtuals) children
 
-let linearize_tree tree =
-  String.concat " " (collect_tokens tree)
+let linearize ~virtuals tree =
+  String.concat " " (collect_tokens ~virtuals tree)
 
-type display_mode = Tokens | Trees [@@warning "-37"]
+let count_gaps tree =
+  let rec go = function
+    | Virtual _ -> 1
+    | Node (_, children) -> List.fold_left (fun a c -> a + go c) 0 children
+    | Leaf _ -> 0
+  in go tree
+
+(* ------------------------------------------------------------------ *)
+(* Display modes                                                       *)
+(* ------------------------------------------------------------------ *)
+
+type display_mode =
+  | Tokens   (* real tokens only, deduplicated *)
+  | Strings  (* tokens + virtual markers, deduplicated *)
+  | Trees    (* full trees, collapsed if same string+virtuals *)
+
+(* ------------------------------------------------------------------ *)
+(* Tree printer                                                        *)
+(* ------------------------------------------------------------------ *)
+
+let print_tree_result ?grammar i n_unique gaps tree =
+  Printf.printf "  ── Tree %d/%d  (%d gap%s) ──\n"
+    i n_unique gaps (if gaps = 1 then "" else "s");
+  print_tree ?grammar tree;
+  print_newline ()
+
+(* ------------------------------------------------------------------ *)
+(* print_results                                                       *)
+(* ------------------------------------------------------------------ *)
 
 let print_results ?grammar tbl roots mode =
   List.iter (fun (rc : root_candidate) ->
-    Printf.printf "  [reconstructing %s...]\n%!" rc.root;
     let trees = reconstruct_trees_virtual tbl rc.root in
-    Printf.printf "  [%s: %d trees]\n%!" rc.root (List.length trees);
-    if trees <> [] then begin
+    if trees = [] then ()
+    else begin
+      let gap_label =
+        if rc.missing_left = [] && rc.missing_right = [] then "complete"
+        else Printf.sprintf "partial — missing %s"
+          (String.concat " "
+            (List.map (fun s -> match s with
+               | Terminal t -> Printf.sprintf "\"%s\"" t
+               | Nonterminal n -> n)
+              (rc.missing_left @ rc.missing_right)))
+      in
+      Printf.printf "\n┌─ %s  [%s]\n" rc.root gap_label;
       match mode with
       | Tokens ->
-        let lines = List.sort_uniq String.compare (List.map linearize_tree trees) in
-        Printf.printf "  %s (%d unique):\n" rc.root (List.length lines);
-        List.iter (fun line -> Printf.printf "    %s\n" line) lines
+        let lines = List.sort_uniq String.compare
+          (List.map (linearize ~virtuals:false) trees) in
+        Printf.printf "│  %d unique token string%s:\n" (List.length lines)
+          (if List.length lines = 1 then "" else "s");
+        List.iter (fun s -> Printf.printf "│    %s\n" s) lines;
+        Printf.printf "└─\n"
+
+      | Strings ->
+        let lines = List.sort_uniq String.compare
+          (List.map (linearize ~virtuals:true) trees) in
+        Printf.printf "│  %d unique string%s (incl. gaps):\n" (List.length lines)
+          (if List.length lines = 1 then "" else "s");
+        List.iter (fun s -> Printf.printf "│    %s\n" s) lines;
+        Printf.printf "└─\n"
+
       | Trees ->
-        Printf.printf "  %s (%d):\n" rc.root (List.length trees);
+        (* Collapse trees with identical full linearisation *)
+        let by_string = Hashtbl.create 8 in
+        List.iter (fun tree ->
+          let key = linearize ~virtuals:true tree in
+          if not (Hashtbl.mem by_string key) then
+            Hashtbl.replace by_string key tree)
+          trees;
+        let unique = Hashtbl.fold (fun _ t acc -> t :: acc) by_string [] in
+        let unique = List.sort (fun a b ->
+          compare (count_gaps a) (count_gaps b)) unique in
+        let n = List.length unique in
+        Printf.printf "│  %d unique tree%s:\n" n (if n = 1 then "" else "s");
         List.iteri (fun i tree ->
-          Printf.printf "  Tree %d:\n" (i + 1);
-          print_tree ?grammar tree)
-          trees
+          print_tree_result ?grammar (i + 1) n (count_gaps tree) tree)
+          unique;
+        Printf.printf "└─\n"
     end)
-    roots
+  roots
