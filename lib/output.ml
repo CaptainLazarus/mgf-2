@@ -23,7 +23,9 @@ type display_mode = Tokens | Trees [@@warning "-37"]
 
 let print_results ?grammar tbl roots mode =
   List.iter (fun (rc : root_candidate) ->
+    Printf.printf "  [reconstructing %s...]\n%!" rc.root;
     let trees = reconstruct_trees_virtual tbl rc.root in
+    Printf.printf "  [%s: %d trees]\n%!" rc.root (List.length trees);
     if trees <> [] then begin
       match mode with
       | Tokens ->

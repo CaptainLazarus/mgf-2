@@ -151,6 +151,54 @@ let _test_lisp_invalid_no_trees () =
   Alcotest.(check int) "incomplete dotted pair: no trees" 0 (List.length trees)
 
 (* ============================================================ *)
+(*  Suite 4 — Grammar pipeline                                  *)
+(* ============================================================ *)
+
+let grammar_of_string s =
+  Grammar_reader.extract_grammar_from_string s
+  |> Grammar_converter.convert_grammar
+
+let recog_str s tokens =
+  Recognize.recognize (grammar_of_string s) tokens
+
+(* inline group: list : ITEM (',' ITEM)* ; *)
+let test_inline_group_star () =
+  let g = "list : ITEM (',' ITEM)* ;" in
+  Alcotest.(check bool) "single ITEM" true
+    (Query.is_accepted (recog_str g ["ITEM"]));
+  Alcotest.(check bool) "ITEM , ITEM , ITEM" true
+    (Query.is_accepted (recog_str g ["ITEM"; ","; "ITEM"; ","; "ITEM"]))
+
+(* optional: s : A B? C ; *)
+let test_optional () =
+  let g = "s : A B? C ;" in
+  Alcotest.(check bool) "A B C" true
+    (Query.is_accepted (recog_str g ["A"; "B"; "C"]));
+  Alcotest.(check bool) "A C (B omitted)" true
+    (Query.is_accepted (recog_str g ["A"; "C"]))
+
+(* inline alternatives: s : ('+' | '-') A ; *)
+let test_inline_alts () =
+  let g = "s : ('+' | '-') A ;" in
+  Alcotest.(check bool) "+ A" true
+    (Query.is_accepted (recog_str g ["+"; "A"]));
+  Alcotest.(check bool) "- A" true
+    (Query.is_accepted (recog_str g ["-"; "A"]))
+
+(* uppercase TOKEN+ must not fail with LHS-must-be-nonterminal *)
+let test_uppercase_plus () =
+  let g = "s : TOKEN+ ;" in
+  Alcotest.(check bool) "TOKEN TOKEN" true
+    (Query.is_accepted (recog_str g ["TOKEN"; "TOKEN"]))
+
+(* token normalisation with a hardcoded map (no file I/O) *)
+let test_token_normalize_mapped () =
+  let map = Hashtbl.of_seq (List.to_seq [("If", "if"); ("LeftParen", "(")]) in
+  Alcotest.(check string) "If -> if"         "if" (Io.normalize_token_with map "If");
+  Alcotest.(check string) "LeftParen -> ("   "("  (Io.normalize_token_with map "LeftParen");
+  Alcotest.(check string) "Unknown passthru" "X"  (Io.normalize_token_with map "X")
+
+(* ============================================================ *)
 (*  Runner                                                      *)
 (* ============================================================ *)
 
@@ -169,6 +217,13 @@ let () =
         Alcotest.test_case "NP complete"          `Quick test_roots_np_complete;
         Alcotest.test_case "S partial"            `Quick test_roots_s_partial;
         Alcotest.test_case "S complete sentence"  `Quick test_roots_complete_sentence;
+      ]
+    ; "grammar pipeline", [
+        Alcotest.test_case "inline group star"    `Quick test_inline_group_star;
+        Alcotest.test_case "optional B?"          `Quick test_optional;
+        Alcotest.test_case "inline alternatives"  `Quick test_inline_alts;
+        Alcotest.test_case "uppercase TOKEN+"     `Quick test_uppercase_plus;
+        Alcotest.test_case "token normalize"      `Quick test_token_normalize_mapped;
       ]
     ; "tree reconstruction", [
         Alcotest.test_case "gcl tree count"       `Quick test_gcl_tree_count;
