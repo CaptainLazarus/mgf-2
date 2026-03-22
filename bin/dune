@@ -10,3 +10,8 @@
 (executable
  (name frag_test)
  (libraries practice))
+
+(executable
+ (public_name gen)
+ (name gen)
+ (libraries practice))
