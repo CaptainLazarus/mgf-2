@@ -184,27 +184,35 @@ The algorithm terminates because $T$ is finite and each item is enqueued at most
 
 *Theorem:* If there exists a nonterminal $A in N$ and a derivation tree rooted at $A$ whose yield (with zero or more leaves replaced by virtual gap symbols) equals $omega$, then a valid item appears in $T[0,n]$ after the algorithm completes.
 
+*Fundamental assumption:* fix a derivation tree $cal(T)$ witnessing the theorem — i.e. $A =>^* omega'$ where $omega'$ equals $omega$ with zero or more positions replaced by gaps. The proof shows that at each step the algorithm tracks $cal(T)$: every prefix (or suffix) subtree of $cal(T)$ that spans the processed portion of the input is represented by an item in the table.
+
 The proof proceeds in two parts, one for each fill direction.
 
 === Part 1 — Forward (prefix) induction
 
-*Claim:* If $T[0,k]$ contains a valid item, then $T[0,k+1]$ contains a valid item — provided there exists a production $r in P$ and a nonterminal $A in N$ such that $A =>_r^* w_1 dots w_{k+1}$ (with possible gaps).
+*Claim:* For every $k$, $1 <= k <= n$, $T[0,k]$ contains an item corresponding to the prefix subtree of $cal(T)$ that spans $w_1 dots w_k$.
 
-_Base ($k = 0$):_ $T[0,0]$ is seeded with complete items $I_A$ for all $A in cal(N)_G$ (epsilon nonterminals). Valid by definition.
+_Base ($k = 1$):_ Terminal $w_1$ seeds its projection items via the cover. If the prefix subtree of $cal(T)$ at $w_1$ requires constituents to the left that are absent from the input, boundary stuffing injects the corresponding item into $T[0,1]$ with those constituents marked virtual. Either way, the item for the prefix subtree exists in $T[0,1]$.
 
-_Base ($k = 1$):_ $T[0,1]$ is seeded by projecting $w_1$ to its licensed items, plus boundary stuffing: for any cover rule $I' <- xi space I$ where $xi$ has no corresponding span in the input, $I'$ is injected into $T[0,1]$ with $xi$ marked virtual. Valid by construction.
+_Step:_ Assume $T[0,k]$ contains an item $b$ for the prefix subtree spanning $w_1 dots w_k$. Terminal $w_{k+1}$ seeds $T[k, k+1]$. Two cases:
 
-_Step:_ Assume $T[0,k]$ contains valid items. Terminal $w_{k+1}$ seeds $T[k, k+1]$. The agenda combines items from $T[0,k]$ with items from $T[k, k+1]$ via right-expand, producing items in $T[0, k+1]$. The inductive fill then closes over $T[0,k]$: for each item $b in T[0,k]$, any cover rule of the form $I' <- xi space b$ (where $xi$ is absent from the input) adds $I'$ to $T[0,k]$, which the agenda then propagates into $T[0,k+1]$. Each added item corresponds to a production in $P$, so validity is preserved. $square$
++ $b$ directly combines with $w_{k+1}$: right-expand fires and adds the combined item to $T[0, k+1]$.
+
++ $b$ cannot combine directly: the derivation tree $cal(T)$ requires more structure to the left of $b$ before the combination is possible — i.e. $b$ is the right child of some cover rule whose left child is absent from the input. The inductive fill reduces $b$ leftward by injecting that left child as a virtual gap, producing a new item $b'$ in $T[0,k]$. This repeats until an item emerges that can combine with $w_{k+1}$ via right-expand. Since $cal(T)$ guarantees such a combination exists, termination is assured. $square$
 
 === Part 2 — Backward (suffix) induction
 
 Triggered only if $T[0,n]$ is empty after Part 1 — i.e. no full-span item was reached from the left alone.
 
-*Claim:* If $T[k,n]$ contains a valid item, then $T[k-1,n]$ contains a valid item — provided there exists a production $r in P$ and a nonterminal $A in N$ such that $A =>_r^* w_k dots w_n$ (with possible gaps).
+*Claim:* For every $k$, $0 <= k <= n-1$, $T[k,n]$ contains an item corresponding to the suffix subtree of $cal(T)$ that spans $w_k dots w_n$.
 
-_Base ($k = n$):_ $T[n,n]$ is seeded with epsilon items. $T[n-1,n]$ is seeded by projecting $w_n$ plus right-boundary stuffing: for any cover rule $I' <- I space xi$ where $xi$ is absent, $I'$ is injected with $xi$ virtual.
+_Base ($k = n-1$):_ Terminal $w_n$ seeds its projection items. If the suffix subtree requires constituents to the right that are absent, boundary stuffing injects the item with those constituents virtual.
 
-_Step:_ Assume $T[k,n]$ contains valid items. Terminal $w_k$ seeds $T[k-1,k]$. The agenda combines items from $T[k-1,k]$ with items from $T[k,n]$ via left-expand, producing items in $T[k-1,n]$. The inductive fill closes over $T[k,n]$: for each item $b in T[k,n]$, any cover rule $I' <- b space xi$ (where $xi$ is absent) adds $I'$ to $T[k,n]$, propagating into $T[k-1,n]$. Each added item corresponds to a production in $P$. $square$
+_Step:_ Assume $T[k,n]$ contains an item $b$ for the suffix subtree spanning $w_k dots w_n$. Terminal $w_k$ seeds $T[k-1,k]$. Two cases:
+
++ $b$ directly combines with $w_k$: left-expand fires and adds the combined item to $T[k-1, n]$.
+
++ $b$ cannot combine directly: $cal(T)$ requires more structure to the right of $b$ before the combination is possible. The inductive fill reduces $b$ rightward by injecting the missing right child as a virtual gap, producing $b'$ in $T[k,n]$, until an item emerges that combines with $w_k$ via left-expand. $cal(T)$ guarantees such a combination exists. $square$
 
 === Convergence
 

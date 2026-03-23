@@ -99,3 +99,30 @@ New items only added once. Each new item queued and processed.
 14. One more L-Reduce pass on T[0,n] items directly
 
 Blocking lists (blocked_left, blocked_right) prevent the same partial item combining in the same direction twice — avoids infinite loops with cyclic grammars.
+X. Generate real code and parse generated code --> Only real problem. Reverse engineer, basically --> 
+
+0. -1 How to measure ? Tree size, no of trees, standard measures -----> Actual sciencey stuff --> For trees get breadth and height and stuff --->
+0. QOL --> put the inferred and actual code side by side and add the trees  (maybe) and possibly the inferred NTs (this we have)
+2. Take a grammar --> find expressions --> simplify grammars --> compare rewritten vs actual grammar
+3. Reduce trees --> somehow (doesn't work out ????) --> Look at epsilon
+4. Memoisation somehow --> precompuation of possible pairs of stuff ---> Read the derivatives paper again and CEK machines for ideas
+5. User selects non terminals that are added to a blacklist so they're not inferred
+6. Tree comparision
+7. Throw precedence away when rewriting (or) Remove epsilon ----> What happens ? Science.
+
+
+Examples
+1. if (new_flags & VM_IO)
+
+2. u32 ifm_height = st->ofm.height[2] * stride_y +
+
+3. use_ifm2 = !((st.ifm2.broadcast == 8) || (param == 5) ||
+
+4. panthor_gem_sync(&bo->base.base, queue->syncwait.offset,
+
+5. sizeof(struct panthor_syncobj_32b),
+               DRM_PANTHOR_BO_SYNC_CPU_CACHE_FLUSH_AND_INVALIDATE);
+
+6. ENETC_RXB_DMA_SIZE_XDP);
+
+7. if (rx_ring->vsi->type == ICE_VSI_PF &&

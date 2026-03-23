@@ -59,14 +59,20 @@ let print_results ?grammar tbl roots mode =
     let trees = reconstruct_trees_virtual tbl rc.root in
     if trees = [] then ()
     else begin
+      let fmt_syms syms =
+        String.concat " " (List.map (function
+          | Terminal t -> Printf.sprintf "\"%s\"" t
+          | Nonterminal n -> n) syms)
+      in
       let gap_label =
         if rc.missing_left = [] && rc.missing_right = [] then "complete"
-        else Printf.sprintf "partial — missing %s"
-          (String.concat " "
-            (List.map (fun s -> match s with
-               | Terminal t -> Printf.sprintf "\"%s\"" t
-               | Nonterminal n -> n)
-              (rc.missing_left @ rc.missing_right)))
+        else
+          let parts = List.filter_map (fun (side, syms) ->
+            if syms = [] then None
+            else Some (Printf.sprintf "%s: [%s]" side (fmt_syms syms)))
+            [("L", rc.missing_left); ("R", rc.missing_right)]
+          in
+          "partial — " ^ String.concat "  " parts
       in
       Printf.printf "\n┌─ %s  [%s]\n" rc.root gap_label;
       match mode with
