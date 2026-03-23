@@ -19,6 +19,7 @@ let () =
   Printf.printf "Input: [%s]\n%!" (String.concat "; " tokens);
   let pg = Recognize.prepare grammar in
   let tbl = Recognize.recognize_with pg tokens in
+  Printf.printf "Table items: %d\n%!" (Query.count_table_items tbl);
   let tbl = Htable.show ~roots:true ~grammar:false ~cover:true ~table:true ~cells:false ~result:false tbl in
   let roots = Query.infer_parse_roots tbl in
   Output.print_results ~grammar tbl roots display_mode
