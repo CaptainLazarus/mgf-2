@@ -1,0 +1,6 @@
+[book]
+title = "Head-Driven Parser"
+src = "."
+
+[build]
+build-dir = "../book"

@@ -11,18 +11,16 @@ let pretty_token = function
   | "DOT"    -> "." | "ATOM"   -> "ATOM"
   | s -> s
 
-let rec collect_tokens ~virtuals tree =
+let rec collect_tokens ?grammar ~virtuals tree =
   match tree with
   | Leaf s -> [pretty_token s]
   | Virtual _ when not virtuals -> []
-  | Virtual (HTerm t) -> [Printf.sprintf "<%s>" (pretty_token t)]
-  | Virtual (HItem (CompleteItem nt)) -> [Printf.sprintf "<%s>" nt]
-  | Virtual (HItem (PartialItem _)) -> []
+  | Virtual x -> [Printf.sprintf "<%s>" (Print.label_virtual ?grammar x)]
   | Node (_, []) -> []
-  | Node (_, children) -> List.concat_map (collect_tokens ~virtuals) children
+  | Node (_, children) -> List.concat_map (collect_tokens ?grammar ~virtuals) children
 
-let linearize ~virtuals tree =
-  String.concat " " (collect_tokens ~virtuals tree)
+let linearize ?grammar ~virtuals tree =
+  String.concat " " (collect_tokens ?grammar ~virtuals tree)
 
 let count_gaps tree =
   let rec go = function
@@ -78,7 +76,7 @@ let print_results ?grammar tbl roots mode =
       match mode with
       | Tokens ->
         let lines = List.sort_uniq String.compare
-          (List.map (linearize ~virtuals:false) trees) in
+          (List.map (linearize ?grammar ~virtuals:false) trees) in
         Printf.printf "│  %d unique token string%s:\n" (List.length lines)
           (if List.length lines = 1 then "" else "s");
         List.iter (fun s -> Printf.printf "│    %s\n" s) lines;
@@ -86,7 +84,7 @@ let print_results ?grammar tbl roots mode =
 
       | Strings ->
         let lines = List.sort_uniq String.compare
-          (List.map (linearize ~virtuals:true) trees) in
+          (List.map (linearize ?grammar ~virtuals:true) trees) in
         Printf.printf "│  %d unique string%s (incl. gaps):\n" (List.length lines)
           (if List.length lines = 1 then "" else "s");
         List.iter (fun s -> Printf.printf "│    %s\n" s) lines;
@@ -96,7 +94,7 @@ let print_results ?grammar tbl roots mode =
         (* Collapse trees with identical full linearisation *)
         let by_string = Hashtbl.create 8 in
         List.iter (fun tree ->
-          let key = linearize ~virtuals:true tree in
+          let key = linearize ?grammar ~virtuals:true tree in
           if not (Hashtbl.mem by_string key) then
             Hashtbl.replace by_string key tree)
           trees;
