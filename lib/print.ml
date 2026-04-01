@@ -82,33 +82,36 @@ let print_cover_summary (cover : h_cover) =
 let print_cover (cover : h_cover) =
   Printf.printf "+-- H-Cover %s+\n" (String.make 49 '-');
   Printf.printf "| Items (%d):\n" (List.length cover.items);
-  List.iter (fun it ->
-    Printf.printf "|   %s\n" (string_of_h_item it))
+  List.iter
+    (fun it -> Printf.printf "|   %s\n" (string_of_h_item it))
     (List.sort compare cover.items);
   Printf.printf "| Projections (%d):\n" (List.length cover.projections);
-  List.iter (fun (lhs, rhs) ->
-    Printf.printf "|   %s  <-  %s\n"
-      (string_of_h_item lhs) (string_of_h_item_or_terminal rhs))
+  List.iter
+    (fun (lhs, rhs) ->
+      Printf.printf "|   %s  <-  %s\n" (string_of_h_item lhs)
+        (string_of_h_item_or_terminal rhs))
     cover.projections;
   Printf.printf "| Left expansions (%d):\n" (List.length cover.left_expansions);
-  List.iter (fun (result, x_h, right_item) ->
-    Printf.printf "|   %s  <-  %s  %s\n"
-      (string_of_h_item result)
-      (string_of_h_item_or_terminal x_h)
-      (string_of_h_item right_item))
+  List.iter
+    (fun (result, x_h, right_item) ->
+      Printf.printf "|   %s  <-  %s  %s\n" (string_of_h_item result)
+        (string_of_h_item_or_terminal x_h)
+        (string_of_h_item right_item))
     cover.left_expansions;
-  Printf.printf "| Right expansions (%d):\n" (List.length cover.right_expansions);
-  List.iter (fun (result, left_item, y_h) ->
-    Printf.printf "|   %s  <-  %s  %s\n"
-      (string_of_h_item result)
-      (string_of_h_item left_item)
-      (string_of_h_item_or_terminal y_h))
+  Printf.printf "| Right expansions (%d):\n"
+    (List.length cover.right_expansions);
+  List.iter
+    (fun (result, left_item, y_h) ->
+      Printf.printf "|   %s  <-  %s  %s\n" (string_of_h_item result)
+        (string_of_h_item left_item)
+        (string_of_h_item_or_terminal y_h))
     cover.right_expansions;
-  Printf.printf "| Epsilon projections (%d):\n" (List.length cover.epsilon_projections);
-  List.iter (fun (result, source) ->
-    Printf.printf "|   %s  <-  %s  [ε]\n"
-      (string_of_h_item result)
-      (string_of_h_item source))
+  Printf.printf "| Epsilon projections (%d):\n"
+    (List.length cover.epsilon_projections);
+  List.iter
+    (fun (result, source) ->
+      Printf.printf "|   %s  <-  %s  [ε]\n" (string_of_h_item result)
+        (string_of_h_item source))
     cover.epsilon_projections;
   Printf.printf "+%s+\n" (String.make 60 '-')
 
@@ -118,16 +121,16 @@ let print_cover (cover : h_cover) =
 
 let print_root_candidates candidates =
   Printf.printf "+-- Parse Root Inference %s+\n" (String.make 36 '-');
-  if candidates = [] then
-    Printf.printf "| No items found in T[0,n]\n"
+  if candidates = [] then Printf.printf "| No items found in T[0,n]\n"
   else
-    List.iter (fun c ->
-      if c.missing_left = [] && c.missing_right = [] then
-        Printf.printf "| COMPLETE : %s\n" c.root
-      else
-        let fmt syms = String.concat " " (List.map string_of_symbol syms) in
-        Printf.printf "| PARTIAL  : %s  (missing left: [%s]  right: [%s])\n"
-          c.root (fmt c.missing_left) (fmt c.missing_right))
+    List.iter
+      (fun c ->
+        if c.missing_left = [] && c.missing_right = [] then
+          Printf.printf "| COMPLETE : %s\n" c.root
+        else
+          let fmt syms = String.concat " " (List.map string_of_symbol syms) in
+          Printf.printf "| PARTIAL  : %s  (missing left: [%s]  right: [%s])\n"
+            c.root (fmt c.missing_left) (fmt c.missing_right))
       candidates;
   Printf.printf "+%s+\n" (String.make 60 '-')
 
@@ -143,39 +146,38 @@ let expand_virtual g x =
       let prod = List.find (fun p -> p.index = r) g.productions in
       let syms = Array.of_list prod.rhs in
       Array.to_list (Array.sub syms s (t - s))
-      |> List.map string_of_symbol
-      |> String.concat " "
+      |> List.map string_of_symbol |> String.concat " "
 
 let label_virtual ?grammar x =
   match grammar with
   | Some g -> expand_virtual g x
-  | None   -> string_of_h_item_or_terminal x
+  | None -> string_of_h_item_or_terminal x
 
 let rec print_tree_aux ?grammar prefix is_last tree =
-  let connector    = if is_last then "└── " else "├── " in
-  let child_prefix = prefix ^ (if is_last then "    " else "│   ") in
+  let connector = if is_last then "└── " else "├── " in
+  let child_prefix = prefix ^ if is_last then "    " else "│   " in
   match tree with
-  | Leaf t ->
-    Printf.printf "%s%s\"%s\"\n" prefix connector t
+  | Leaf t -> Printf.printf "%s%s\"%s\"\n" prefix connector t
   | Virtual x ->
-    Printf.printf "%s%s<virtual: %s>\n" prefix connector (label_virtual ?grammar x)
+      Printf.printf "%s%s<virtual: %s>\n" prefix connector
+        (label_virtual ?grammar x)
   | Node (nt, children) ->
-    Printf.printf "%s%s%s\n" prefix connector nt;
-    let n = List.length children in
-    List.iteri (fun i child ->
-      print_tree_aux ?grammar child_prefix (i = n - 1) child)
-      children
+      Printf.printf "%s%s%s\n" prefix connector nt;
+      let n = List.length children in
+      List.iteri
+        (fun i child -> print_tree_aux ?grammar child_prefix (i = n - 1) child)
+        children
 
 let print_tree ?grammar tree =
   match tree with
-  | Leaf t    -> Printf.printf "\"%s\"\n" t
+  | Leaf t -> Printf.printf "\"%s\"\n" t
   | Virtual x -> Printf.printf "<virtual: %s>\n" (label_virtual ?grammar x)
   | Node (nt, children) ->
-    Printf.printf "%s\n" nt;
-    let n = List.length children in
-    List.iteri (fun i child ->
-      print_tree_aux ?grammar "" (i = n - 1) child)
-      children
+      Printf.printf "%s\n" nt;
+      let n = List.length children in
+      List.iteri
+        (fun i child -> print_tree_aux ?grammar "" (i = n - 1) child)
+        children
 
 (* ============================================================ *)
 (*                     TABLE DISPLAY                            *)

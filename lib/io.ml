@@ -2,52 +2,74 @@ open Yojson.Basic.Util
 
 (* Tokens that cparser.g4 uses as bare uppercase names (e.g. While, Do, For).
    These already match CLexer output directly and must NOT be remapped. *)
-let bare_in_grammar = [
-  "While"; "Do"; "For"; "Bool"; "Inline"; "Restrict"; "Volatile";
-  "ThreadLocal"; "Typeof"; "Typeof_unqual"; "Alignas"; "Alignof";
-  "Countof"; "Maxof"; "Minof"; "Asm"; "Attribute"; "Label";
-  "Identifier"; "IntegerConstant"; "FloatingConstant"; "CharacterConstant";
-  "StringLiteral"; "DigitSequence"; "EOF";
-]
+let bare_in_grammar =
+  [
+    "While";
+    "Do";
+    "For";
+    "Bool";
+    "Inline";
+    "Restrict";
+    "Volatile";
+    "ThreadLocal";
+    "Typeof";
+    "Typeof_unqual";
+    "Alignas";
+    "Alignof";
+    "Countof";
+    "Maxof";
+    "Minof";
+    "Asm";
+    "Attribute";
+    "Label";
+    "Identifier";
+    "IntegerConstant";
+    "FloatingConstant";
+    "CharacterConstant";
+    "StringLiteral";
+    "DigitSequence";
+    "EOF";
+  ]
 
 (* Parse CLexer.tokens to build: CLexer-name -> grammar-literal.
    Lines 'literal'=N give the grammar form; lines Name=N give the CLexer name.
    We build Name -> literal so CLexer output can be matched against the grammar. *)
 let build_clexer_map (path : string) : (string, string) Hashtbl.t =
-  let by_num   = Hashtbl.create 64 in
+  let by_num = Hashtbl.create 64 in
   let literals = ref [] in
   let ic = open_in path in
-  (try while true do
-    let line = String.trim (input_line ic) in
-    if line <> "" then
-      match String.rindex_opt line '=' with
-      | None -> ()
-      | Some eq ->
-        let key = String.sub line 0 eq in
-        let num = String.sub line (eq + 1) (String.length line - eq - 1) in
-        let n = String.length key in
-        if n >= 3 && key.[0] = '\'' && key.[n - 1] = '\'' then
-          let lit = String.sub key 1 (n - 2) in
-          literals := (num, lit) :: !literals
-        else if n > 0 && key.[0] <> '\'' then
-          Hashtbl.replace by_num num key
-  done with End_of_file -> ());
+  (try
+     while true do
+       let line = String.trim (input_line ic) in
+       if line <> "" then
+         match String.rindex_opt line '=' with
+         | None -> ()
+         | Some eq ->
+             let key = String.sub line 0 eq in
+             let num = String.sub line (eq + 1) (String.length line - eq - 1) in
+             let n = String.length key in
+             if n >= 3 && key.[0] = '\'' && key.[n - 1] = '\'' then
+               let lit = String.sub key 1 (n - 2) in
+               literals := (num, lit) :: !literals
+             else if n > 0 && key.[0] <> '\'' then
+               Hashtbl.replace by_num num key
+     done
+   with End_of_file -> ());
   close_in ic;
   let result = Hashtbl.create 64 in
-  List.iter (fun (num, lit) ->
-    match Hashtbl.find_opt by_num num with
-    | Some name when not (List.mem name bare_in_grammar) ->
-      Hashtbl.replace result name lit
-    | _ -> ()
-  ) !literals;
+  List.iter
+    (fun (num, lit) ->
+      match Hashtbl.find_opt by_num num with
+      | Some name when not (List.mem name bare_in_grammar) ->
+          Hashtbl.replace result name lit
+      | _ -> ())
+    !literals;
   result
 
 let clexer_map = lazy (build_clexer_map "grammars/CLexer.tokens")
 
 let normalize_token_with map t =
-  match Hashtbl.find_opt map t with
-  | Some lit -> lit
-  | None     -> t
+  match Hashtbl.find_opt map t with Some lit -> lit | None -> t
 
 let normalize_token t = normalize_token_with (Lazy.force clexer_map) t
 
@@ -70,4 +92,5 @@ let run_java_and_read_tokens () =
 let token_of_json j = j |> member "token" |> to_string
 
 let tokens_from_java () =
-  run_java_and_read_tokens () |> List.map (fun j -> token_of_json j |> normalize_token)
+  run_java_and_read_tokens ()
+  |> List.map (fun j -> token_of_json j |> normalize_token)

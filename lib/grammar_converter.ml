@@ -20,13 +20,9 @@ let convert_grammar (g : Domain_types.grammar) : Types.grammar =
         in
         let rhs = List.filter_map convert_symbol rule.rhs in
         let head_pos =
-          if rhs = [] then 0
-          else if rule.head_pos > 0 then rule.head_pos
-          else 1
+          if rhs = [] then 0 else if rule.head_pos > 0 then rule.head_pos else 1
         in
-        let prod : Types.production =
-          { index = idx; lhs; rhs; head_pos }
-        in
+        let prod : Types.production = { index = idx; lhs; rhs; head_pos } in
         (prod :: acc, idx + 1))
       ([], 1) g
   in
@@ -40,14 +36,11 @@ let convert_grammar (g : Domain_types.grammar) : Types.grammar =
       (List.concat_map
          (fun (p : Types.production) ->
            List.filter_map
-             (fun s ->
-               match s with Terminal t -> Some t | _ -> None)
+             (fun s -> match s with Terminal t -> Some t | _ -> None)
              p.rhs)
          productions)
   in
   let start =
-    match productions with
-    | p :: _ -> p.lhs
-    | [] -> failwith "Empty grammar"
+    match productions with p :: _ -> p.lhs | [] -> failwith "Empty grammar"
   in
   { nonterminals; terminals; productions; start }

@@ -45,14 +45,18 @@ let is_blocked_right tbl i j item r s =
 
 let block_left tbl i j item r t =
   let entry = tbl.entries.(i).(j) in
-  if not (List.exists
-      (fun (it, r', t') -> it = item && r = r' && t = t')
-      entry.blocked_left)
+  if
+    not
+      (List.exists
+         (fun (it, r', t') -> it = item && r = r' && t = t')
+         entry.blocked_left)
   then entry.blocked_left <- (item, r, t) :: entry.blocked_left
 
 let block_right tbl i j item r s =
   let entry = tbl.entries.(i).(j) in
-  if not (List.exists
-      (fun (it, r', s') -> it = item && r = r' && s = s')
-      entry.blocked_right)
+  if
+    not
+      (List.exists
+         (fun (it, r', s') -> it = item && r = r' && s = s')
+         entry.blocked_right)
   then entry.blocked_right <- (item, r, s) :: entry.blocked_right

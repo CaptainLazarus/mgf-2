@@ -1,9 +1,11 @@
 (test
  (name test_practice)
  (libraries practice)
- (deps (glob_files_rec ../grammars/*.g4)))
+ (deps
+  (glob_files_rec ../grammars/*.g4)))
 
 (test
  (name test_specs)
  (libraries practice alcotest)
- (deps (glob_files_rec ../grammars/*.g4)))
+ (deps
+  (glob_files_rec ../grammars/*.g4)))

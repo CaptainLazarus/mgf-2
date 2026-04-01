@@ -14,10 +14,13 @@ let is_partial = function PartialItem _ -> true | CompleteItem _ -> false
 
 (* Return a copy of the grammar with one production's head_pos changed *)
 let set_head ~prod_index ~head_pos (g : grammar) : grammar =
-  { g with productions =
-      List.map (fun p ->
-        if p.index = prod_index then { p with head_pos } else p)
-        g.productions }
+  {
+    g with
+    productions =
+      List.map
+        (fun p -> if p.index = prod_index then { p with head_pos } else p)
+        g.productions;
+  }
 
 (* Compute nullable nonterminals via fixed-point iteration *)
 let compute_nullable (g : grammar) : string list =
@@ -158,8 +161,7 @@ let compute_h_cover (g : grammar) : h_cover =
     projections = !projections;
     left_expansions = Hashtbl.fold (fun k () acc -> k :: acc) dedup_left [];
     right_expansions = Hashtbl.fold (fun k () acc -> k :: acc) dedup_right [];
-    epsilon_projections =
-      Hashtbl.fold (fun k () acc -> k :: acc) dedup_eps [];
+    epsilon_projections = Hashtbl.fold (fun k () acc -> k :: acc) dedup_eps [];
   }
 
 (* Cover lookup functions *)
@@ -206,8 +208,7 @@ let find_left_expansions_by_left cover x_item =
 
 let find_epsilon_projections cover item =
   List.filter_map
-    (fun (result, source) ->
-      if source = item then Some result else None)
+    (fun (result, source) -> if source = item then Some result else None)
     cover.epsilon_projections
 
 let get_expansion_index result =

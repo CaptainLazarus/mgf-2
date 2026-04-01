@@ -55,10 +55,7 @@ type rec_table = {
 }
 
 (* Pre-compiled grammar *)
-type prepared_grammar = {
-  pg_grammar : grammar;
-  pg_cover   : h_cover;
-}
+type prepared_grammar = { pg_grammar : grammar; pg_cover : h_cover }
 
 (* Parse trees *)
 type tree =

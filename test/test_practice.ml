@@ -10,12 +10,12 @@ let () =
     Htable.print_trees tbl "lisp_"
   in
   (* atom *)
-  run ["ATOM"];
+  run [ "ATOM" ];
   (* dotted pair: (a . b) *)
-  run ["LPAREN"; "ATOM"; "DOT"; "ATOM"; "RPAREN"];
+  run [ "LPAREN"; "ATOM"; "DOT"; "ATOM"; "RPAREN" ];
   (* list with one element: (a) *)
-  run ["LPAREN"; "ATOM"; "RPAREN"];
+  run [ "LPAREN"; "ATOM"; "RPAREN" ];
   (* empty list: () *)
-  run ["LPAREN"; "RPAREN"];
+  run [ "LPAREN"; "RPAREN" ];
   (* invalid: incomplete dotted pair *)
-  run ["LPAREN"; "ATOM"; "DOT"]
+  run [ "LPAREN"; "ATOM"; "DOT" ]
