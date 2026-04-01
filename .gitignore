@@ -37,3 +37,6 @@ _opam/
 
 # mdbook output
 book/
+
+# output files
+output*.txt
