@@ -108,64 +108,67 @@ let seed_table_with_epsilons tbl n agenda =
            if add_item tbl i i item deriv then Queue.add (item, i, i) agenda
          done)
 
+let seed_non_terminals_that_produce_terminal_productions tbl n agenda =
+  for i = 1 to n do
+    let term = tbl.input.(i - 1) in
+    let items = find_projections_from_terminal tbl.cover term in
+    items
+    |> List.iter (fun item ->
+           let deriv = FromTerminal term in
+           if add_item tbl (i - 1) i item deriv then
+             Queue.add (item, i - 1, i) agenda)
+  done
+
+let seed_first_cell_with_possible_left_input_completions tbl first_term agenda =
+  tbl.cover.right_expansions
+  |> List.iter (fun (result, left_item, y_h) ->
+         let matches =
+           match y_h with
+           | HTerm t -> t = first_term
+           | HItem item -> mem_item tbl 0 1 item
+         in
+         if matches then
+           let deriv = FromBoundaryRight (HItem left_item, y_h) in
+           if add_item tbl 0 1 result deriv then Queue.add (result, 0, 1) agenda);
+  tbl.cover.left_expansions
+  |> List.iter (fun (result, x_h, right_item) ->
+         if mem_item tbl 0 1 right_item then
+           let deriv = FromBoundaryRight (x_h, HItem right_item) in
+           if add_item tbl 0 1 result deriv then Queue.add (result, 0, 1) agenda)
+
+let seed_last_cell_with_possible_right_input_completions tbl last_term n agenda
+    =
+  tbl.cover.left_expansions
+  |> List.iter (fun (result, x_h, right_item) ->
+         let matches =
+           match x_h with
+           | HTerm t -> t = last_term
+           | HItem item -> mem_item tbl (n - 1) n item
+         in
+         if matches then
+           let deriv = FromBoundaryLeft (x_h, HItem right_item) in
+           if add_item tbl (n - 1) n result deriv then
+             Queue.add (result, n - 1, n) agenda);
+
+  tbl.cover.right_expansions
+  |> List.iter (fun (result, left_item, y_h) ->
+         if mem_item tbl (n - 1) n left_item then
+           let deriv = FromBoundaryLeft (HItem left_item, y_h) in
+           if add_item tbl (n - 1) n result deriv then
+             Queue.add (result, n - 1, n) agenda)
+
 let recognize_tbl (tbl : rec_table) : rec_table =
   let n = tbl.n in
   let agenda = Queue.create () in
 
   seed_table_with_epsilons tbl n agenda;
-
-  for i = 1 to n do
-    let term = tbl.input.(i - 1) in
-    let items = find_projections_from_terminal tbl.cover term in
-    List.iter
-      (fun item ->
-        let deriv = FromTerminal term in
-        if add_item tbl (i - 1) i item deriv then
-          Queue.add (item, i - 1, i) agenda)
-      items
-  done;
+  seed_non_terminals_that_produce_terminal_productions tbl n agenda;
 
   if n > 0 then (
     let first_term = tbl.input.(0) in
     let last_term = tbl.input.(n - 1) in
-    List.iter
-      (fun (result, left_item, y_h) ->
-        let matches =
-          match y_h with
-          | HTerm t -> t = first_term
-          | HItem item -> mem_item tbl 0 1 item
-        in
-        if matches then
-          let deriv = FromBoundaryRight (HItem left_item, y_h) in
-          if add_item tbl 0 1 result deriv then Queue.add (result, 0, 1) agenda)
-      tbl.cover.right_expansions;
-    List.iter
-      (fun (result, x_h, right_item) ->
-        if mem_item tbl 0 1 right_item then
-          let deriv = FromBoundaryRight (x_h, HItem right_item) in
-          if add_item tbl 0 1 result deriv then Queue.add (result, 0, 1) agenda)
-      tbl.cover.left_expansions;
-
-    List.iter
-      (fun (result, x_h, right_item) ->
-        let matches =
-          match x_h with
-          | HTerm t -> t = last_term
-          | HItem item -> mem_item tbl (n - 1) n item
-        in
-        if matches then
-          let deriv = FromBoundaryLeft (x_h, HItem right_item) in
-          if add_item tbl (n - 1) n result deriv then
-            Queue.add (result, n - 1, n) agenda)
-      tbl.cover.left_expansions;
-
-    List.iter
-      (fun (result, left_item, y_h) ->
-        if mem_item tbl (n - 1) n left_item then
-          let deriv = FromBoundaryLeft (HItem left_item, y_h) in
-          if add_item tbl (n - 1) n result deriv then
-            Queue.add (result, n - 1, n) agenda)
-      tbl.cover.right_expansions);
+    seed_first_cell_with_possible_left_input_completions tbl first_term agenda;
+    seed_last_cell_with_possible_right_input_completions tbl last_term n agenda);
 
   process_agenda tbl agenda;
 
