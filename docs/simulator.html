@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Algorithm 7 — Fragment Parser Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#08090d;--s1:#0f1117;--s2:#161a24;--s3:#1e2330;--bd:#282e3e;
+  --tx:#cdd3e0;--dm:#4f5872;--gold:#e8a838;--blue:#5b9ef5;--green:#3ddba0;
+  --red:#f06060;--pink:#e87cb8;--purple:#a388ee;--cyan:#5cd6d6;
+  --mono:'IBM Plex Mono',monospace;--sans:'Outfit',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px;}
+button{font-family:var(--sans);cursor:pointer;}
+input,textarea,select{font-family:var(--mono);background:var(--s2);color:var(--tx);border:1px solid var(--bd);border-radius:5px;padding:6px 8px;font-size:12px;outline:none;}
+input:focus,textarea:focus{border-color:var(--gold);}
+
+/* LAYOUT */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+.topbar{display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--bd);background:var(--s1);flex-shrink:0;}
+.topbar h1{font-size:15px;font-weight:800;color:var(--gold);letter-spacing:0.02em;}
+.topbar .sep{width:1px;height:20px;background:var(--bd);}
+.topbar .chip{font-family:var(--mono);font-size:10px;color:var(--dm);background:var(--s2);padding:3px 8px;border-radius:10px;}
+
+.body{display:grid;grid-template-columns:280px 1fr 360px;flex:1;overflow:hidden;}
+
+/* LEFT: config */
+.cfg{background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow-y:auto;}
+.cfg::-webkit-scrollbar{width:4px;} .cfg::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px;}
+.cfg-section{padding:10px 14px;border-bottom:1px solid var(--bd);}
+.cfg-section .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--dm);margin-bottom:6px;}
+.cfg-section textarea{width:100%;resize:vertical;min-height:60px;font-size:11px;line-height:1.5;}
+.cfg-section input[type=text]{width:100%;font-size:11px;}
+.cfg-section .help{font-size:10px;color:var(--dm);margin-top:4px;line-height:1.4;}
+.cfg-section .err{font-size:10px;color:var(--red);margin-top:4px;}
+.btn-sm{font-size:11px;font-weight:600;padding:6px 14px;border:1px solid var(--bd);border-radius:5px;background:var(--s2);color:var(--tx);transition:all .2s;}
+.btn-sm:hover{border-color:var(--gold);color:var(--gold);}
+.btn-sm.pri{background:var(--gold);color:var(--bg);border-color:var(--gold);}
+.btn-sm.pri:hover{background:#c98e28;}
+.head-editor{margin-top:6px;display:flex;flex-direction:column;gap:3px;}
+.head-row{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;}
+.head-row select{font-size:11px;padding:2px 4px;min-width:50px;}
+.head-row .pr{color:var(--dm);min-width:20px;}
+.head-row .hd-tag{color:var(--pink);font-weight:600;font-size:9px;text-transform:uppercase;}
+
+/* CENTER: matrix */
+.center{display:flex;flex-direction:column;overflow:auto;padding:12px;}
+.center::-webkit-scrollbar{width:5px;height:5px;} .center::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px;}
+.input-bar{display:flex;align-items:flex-end;justify-content:center;gap:0;margin-bottom:8px;flex-shrink:0;}
+.ib-pos{font-family:var(--mono);font-size:9px;color:var(--dm);width:56px;text-align:center;}
+.ib-cell{display:flex;flex-direction:column;align-items:center;width:56px;}
+.ib-tok{font-family:var(--mono);font-size:12px;font-weight:600;padding:3px 8px;background:var(--s2);border:1.5px solid var(--bd);border-radius:4px;text-align:center;transition:all .3s;}
+.ib-tok.active{border-color:var(--gold);color:var(--gold);background:#e8a83812;box-shadow:0 0 8px #e8a83818;}
+.ib-tok.head-t{border-bottom:2px solid var(--pink);}
+
+.mat-area{flex:1;display:flex;justify-content:center;align-items:flex-start;}
+.mgrid{display:inline-grid;gap:1px;}
+.mhdr{font-family:var(--mono);font-size:9px;color:var(--dm);display:flex;align-items:center;justify-content:center;min-height:18px;}
+.mcell{
+  min-width:56px;min-height:32px;background:var(--s1);border:1px solid var(--bd);border-radius:3px;
+  padding:2px;display:flex;flex-wrap:wrap;gap:1px;align-content:flex-start;
+  transition:all .3s;font-family:var(--mono);font-size:9px;overflow:hidden;
+}
+.mcell.off{background:transparent;border-color:transparent;}
+.mcell.hl-t{border-color:var(--gold);background:#e8a83810;box-shadow:0 0 8px #e8a83815;}
+.mcell.hl-s{border-color:var(--blue);background:#5b9ef510;}
+.mcell.hl-ok{border-color:var(--green);background:#3ddba012;box-shadow:0 0 12px #3ddba020;}
+.mcell.hl-no{border-color:var(--red);background:#f0606012;}
+.mcell.hl-q{border-color:var(--purple);background:#a388ee10;}
+.mcell.hl-boundary{border-color:var(--cyan);background:#5cd6d610;}
+.mcell.hl-scan{border-color:var(--dm);background:#282e3e60;}
+.mcell.hl-work{border-color:var(--purple);background:#a388ee18;}
+.tag{padding:0 3px;border-radius:2px;background:var(--s2);border:1px solid var(--bd);white-space:nowrap;line-height:1.3;}
+.tag.fresh{background:#e8a83822;border-color:var(--gold);color:var(--gold);animation:pop .4s ease-out;}
+.tag.virtual{background:#5cd6d622;border-color:var(--cyan);color:var(--cyan);}
+@keyframes pop{0%{transform:scale(.5);opacity:0}50%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+
+/* RIGHT: trace */
+.right-p{background:var(--s1);border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;}
+.ctrls{padding:8px 12px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:6px;}
+.ctrls .row{display:flex;gap:5px;}
+.ctrls .srow{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--dm);}
+.ctrls .srow input{flex:1;accent-color:var(--gold);}
+
+/* Narration */
+.narr{padding:10px 12px;border-bottom:1px solid var(--bd);min-height:90px;max-height:200px;overflow-y:auto;}
+.narr::-webkit-scrollbar{width:3px;} .narr::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px;}
+.narr-head{font-family:var(--mono);font-size:11px;font-weight:600;margin-bottom:4px;}
+.narr-head.t-init{color:var(--gold);} .narr-head.t-project{color:var(--green);}
+.narr-head.t-left-expand{color:var(--blue);} .narr-head.t-right-expand{color:var(--pink);}
+.narr-head.t-check{color:var(--purple);} .narr-head.t-blocked{color:var(--red);}
+.narr-head.t-scan{color:var(--cyan);} .narr-head.t-accept{color:var(--green);}
+.narr-head.t-reject{color:var(--red);} .narr-head.t-idle{color:var(--dm);}
+.narr-head.t-boundary{color:var(--cyan);}
+.narr-head.t-l-reduce{color:var(--purple);}
+.narr-head.t-r-reduce{color:var(--pink);}
+
+/* Log */
+.log{flex:1;overflow-y:auto;padding:6px 12px;font-size:10px;}
+.log::-webkit-scrollbar{width:3px;} .log::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px;}
+.le{padding:3px 0;border-bottom:1px solid #12141c;display:flex;gap:6px;align-items:baseline;}
+.le .ln{font-family:var(--mono);color:var(--dm);min-width:28px;font-size:9px;}
+.le .lt{font-family:var(--mono);font-weight:600;min-width:70px;font-size:9px;}
+.le .lt.t-init{color:var(--gold);} .le .lt.t-project{color:var(--green);}
+.le .lt.t-left-expand{color:var(--blue);} .le .lt.t-right-expand{color:var(--pink);}
+.le .lt.t-check{color:var(--purple);} .le .lt.t-blocked{color:var(--red);}
+.le .lt.t-scan{color:var(--cyan);} .le .lt.t-accept{color:var(--green);}
+.le .lt.t-reject{color:var(--red);} .le .lt.t-idle{color:var(--dm);}
+.le .lt.t-boundary{color:var(--cyan);}
+.le .lt.t-l-reduce{color:var(--purple);}
+.le .lt.t-r-reduce{color:var(--pink);}
+.le .ld{color:var(--dm);}
+.le .ld code{font-family:var(--mono);color:var(--tx);font-size:9px;}
+
+.status{padding:6px 12px;border-top:1px solid var(--bd);font-family:var(--mono);font-size:11px;display:flex;justify-content:space-between;}
+.status .st{color:var(--gold);}
+
+@media(max-width:1100px){.body{grid-template-columns:1fr;}.cfg,.right-p{display:none;}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="topbar">
+  <h1>Algorithm 7</h1>
+  <div class="sep"></div>
+  <span style="font-size:12px;color:var(--dm);">Head-Driven Tabular Recognizer — Fragment Parser Simulator</span>
+  <div class="chip">Satta &amp; Stock 1994 + Fragment Extensions</div>
+</div>
+<div class="body">
+
+<!-- LEFT: Config -->
+<div class="cfg" id="cfgPanel">
+  <div class="cfg-section">
+    <div class="lbl">Grammar (one rule per line)</div>
+    <textarea id="gramIn" rows="7">S -> NP VP
+VP -> cl v NP
+NP -> det n</textarea>
+    <div class="help">Format: <code>LHS -> RHS1 RHS2 ...</code><br>Use <code>|</code> for alternatives: <code>E -> E + T | T</code><br>Uppercase = nonterminal, lowercase = terminal</div>
+    <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;" id="exBtns">
+      <button class="btn-sm" data-ex="clitic">G_cl</button>
+      <button class="btn-sm" data-ex="ambig">Ambiguous NP</button>
+      <button class="btn-sm" data-ex="arith">Arithmetic</button>
+      <button class="btn-sm" data-ex="fragment">Fragment</button>
+    </div>
+    <div class="err" id="gramErr"></div>
+  </div>
+  <div class="cfg-section">
+    <div class="lbl">Input string (space-separated)</div>
+    <input type="text" id="inputIn" value="det n cl v det n">
+  </div>
+  <div class="cfg-section">
+    <div class="lbl">Head assignments</div>
+    <div class="help">Select which RHS symbol is the head of each production. Heads shown in <span style="color:var(--pink)">pink</span>.</div>
+    <div class="head-editor" id="headEditor"></div>
+  </div>
+  <div class="cfg-section" style="display:flex;gap:6px;">
+    <button class="btn-sm pri" id="btnBuild">Build &amp; Reset</button>
+  </div>
+  <div class="cfg-section">
+    <div class="lbl">H-Cover Productions (generated)</div>
+    <div id="coverDisplay" style="font-family:var(--mono);font-size:10px;line-height:1.6;color:var(--dm);max-height:250px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- CENTER: Matrix -->
+<div class="center" id="centerPanel">
+  <div style="display:flex;flex-direction:column;align-items:center;">
+    <div class="input-bar" id="inputBar"></div>
+  </div>
+  <div class="mat-area">
+    <div id="matArea"></div>
+  </div>
+</div>
+
+<!-- RIGHT: Trace -->
+<div class="right-p">
+  <div class="ctrls">
+    <div class="row">
+      <button class="btn-sm pri" id="bStep" style="flex:1">Step ▶</button>
+      <button class="btn-sm" id="bPlay" style="flex:1">Play ▶▶</button>
+      <button class="btn-sm" id="bReset" style="flex:1">Reset ↺</button>
+    </div>
+    <div class="srow">
+      <span>Speed</span>
+      <input type="range" id="sSlider" min="100" max="2000" value="600" step="50">
+      <span id="sVal">600ms</span>
+    </div>
+  </div>
+  <div class="narr" id="narrBox">
+    <div class="narr-head t-idle">READY</div>
+    <div class="narr-body">Configure grammar and input on the left, then press <strong>Build &amp; Reset</strong>.</div>
+  </div>
+  <div class="log" id="logBox"></div>
+  <div class="status">
+    <span class="st" id="stState">Ready</span>
+    <span id="stStep">—</span>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+// ============================================================
+// DATA STRUCTURES
+// ============================================================
+let G = {prods:[], N:new Set(), T:new Set(), S:''};
+let heads = [];
+let W = [];
+let n = 0;
+
+// h-cover
+let projProds = [];
+let expProds = [];
+
+// Runtime
+let Tmat = [];
+let Qsets = {};
+let agenda = [];
+let trace = [];
+let traceIdx = -1;
+let Tsnapshots = [];
+let playing = false;
+let timer = null;
+let finished = false;
+
+// ============================================================
+// GRAMMAR PARSING
+// ============================================================
+function parseGrammar(text) {
+  const lines = text.trim().split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
+  const prods = [];
+  const Ns = new Set(), Ts = new Set();
+  for (const line of lines) {
+    const m = line.match(/^(\S+)\s*->\s*(.+)$/);
+    if (!m) throw `Bad production: ${line}`;
+    const lhs = m[1];
+    const alts = m[2].split('|').map(a => a.trim()).filter(a => a);
+    for (const alt of alts) {
+      const rhs = alt.split(/\s+/).filter(s => s);
+      if (rhs.length === 0) throw `Empty alternative in: ${line}`;
+      Ns.add(lhs);
+      prods.push({lhs, rhs});
+    }
+  }
+  for (const p of prods) for (const s of p.rhs) if (!Ns.has(s)) Ts.add(s);
+  return {prods, N:Ns, T:Ts, S:prods[0].lhs};
+}
+
+function buildHeadEditor() {
+  const el = document.getElementById('headEditor');
+  let html = '';
+  for (let r = 0; r < G.prods.length; r++) {
+    const p = G.prods[r];
+    html += `<div class="head-row"><span class="pr">${r+1}:</span><span>${p.lhs} →</span>`;
+    html += `<select id="hsel_${r}">`;
+    for (let k = 0; k < p.rhs.length; k++) {
+      const sel = (heads[r] === k) ? 'selected' : '';
+      html += `<option value="${k}" ${sel}>${p.rhs[k]}</option>`;
+    }
+    html += `</select><span class="hd-tag">head</span></div>`;
+  }
+  el.innerHTML = html;
+  for (let r = 0; r < G.prods.length; r++) {
+    document.getElementById(`hsel_${r}`).addEventListener('change', e => {
+      heads[r] = parseInt(e.target.value);
+    });
+  }
+}
+
+// ============================================================
+// H-COVER CONSTRUCTION
+// ============================================================
+function hitem(r,s,t){ return `I${r+1}(${s},${t})`; }
+function hcomplete(A){ return `I_${A}`; }
+
+function buildHCover() {
+  projProds = [];
+  expProds = [];
+
+  for (let r = 0; r < G.prods.length; r++) {
+    const p = G.prods[r];
+    const nr = p.rhs.length;
+    const tr = heads[r]; // 0-based head index
+
+    if (nr === 1) {
+      const s = p.rhs[0];
+      projProds.push({
+        lhs: hcomplete(p.lhs),
+        rhs: G.N.has(s) ? hcomplete(s) : s,
+        rhsIsTerminal: G.T.has(s),
+        prodIdx: r
+      });
+      continue;
+    }
+
+    // Projection: head projects into partial item
+    const headSym = p.rhs[tr];
+    projProds.push({
+      lhs: hitem(r, tr, tr+1),
+      rhs: G.N.has(headSym) ? hcomplete(headSym) : headSym,
+      rhsIsTerminal: G.T.has(headSym),
+      prodIdx: r
+    });
+
+    for (let s = 0; s <= tr; s++) {
+      for (let t = tr+1; t <= nr; t++) {
+        if (s === 0 && t === nr) {
+          if (nr > 1) {
+            // left expand to complete
+            const x = p.rhs[0];
+            const subItem = hitem(r, 1, nr);
+            expProds.push({
+              lhs: hcomplete(p.lhs),
+              left: G.N.has(x) ? hcomplete(x) : x,
+              right: subItem,
+              leftIsTerm: G.T.has(x),
+              rightIsTerm: false,
+              prodIdx: r, s:0, t:nr, expandDir:'left'
+            });
+            // right expand to complete
+            const y = p.rhs[nr-1];
+            const subLeft = hitem(r, 0, nr-1);
+            expProds.push({
+              lhs: hcomplete(p.lhs),
+              left: subLeft,
+              right: G.N.has(y) ? hcomplete(y) : y,
+              leftIsTerm: false,
+              rightIsTerm: G.T.has(y),
+              prodIdx: r, s:0, t:nr, expandDir:'right'
+            });
+          }
+          continue;
+        }
+
+        const itemName = hitem(r, s, t);
+
+        // Left expansion: absorb symbol to the left of current span
+        if (s < tr) {
+          const x = p.rhs[s];
+          const subRight = hitem(r, s+1, t);
+          if (s+1 < t) {
+            expProds.push({
+              lhs: itemName,
+              left: G.N.has(x) ? hcomplete(x) : x,
+              right: subRight,
+              leftIsTerm: G.T.has(x),
+              rightIsTerm: false,
+              prodIdx: r, s, t, expandDir:'left'
+            });
+          }
+        }
+
+        // Right expansion: absorb symbol to the right of current span
+        if (t > tr+1) {
+          const y = p.rhs[t-1];
+          const subLeft = hitem(r, s, t-1);
+          if (s < t-1) {
+            expProds.push({
+              lhs: itemName,
+              left: subLeft,
+              right: G.N.has(y) ? hcomplete(y) : y,
+              leftIsTerm: false,
+              rightIsTerm: G.T.has(y),
+              prodIdx: r, s, t, expandDir:'right'
+            });
+          }
+        }
+      }
+    }
+  }
+
+  displayCover();
+}
+
+function displayCover() {
+  const el = document.getElementById('coverDisplay');
+  let html = '<div style="color:var(--green);margin-bottom:4px;">Projections:</div>';
+  for (const p of projProds) {
+    html += `<div>${p.lhs} → ${p.rhs}</div>`;
+  }
+  html += '<div style="color:var(--blue);margin-top:8px;margin-bottom:4px;">Left expansions (head=right):</div>';
+  for (const p of expProds.filter(e=>e.expandDir==='left')) {
+    html += `<div>${p.lhs} → ${p.left} · ${p.right}</div>`;
+  }
+  html += '<div style="color:var(--pink);margin-top:8px;margin-bottom:4px;">Right expansions (head=left):</div>';
+  for (const p of expProds.filter(e=>e.expandDir==='right')) {
+    html += `<div>${p.lhs} → ${p.left} · ${p.right}</div>`;
+  }
+  el.innerHTML = html;
+}
+
+// ============================================================
+// ALGORITHM 7 + FRAGMENT EXTENSIONS — FULL TRACE GENERATOR
+// ============================================================
+function isPartialItem(item) {
+  return /^I\d+\(/.test(item);
+}
+
+function qkey(i,j,d){ return `${i},${j},${d}`; }
+
+function generateFullTrace() {
+  n = W.length;
+  Tmat = [];
+  for(let i=0;i<=n;i++){Tmat[i]=[];for(let j=0;j<=n;j++)Tmat[i][j]=new Set();}
+  Qsets = {};
+  for(let i=0;i<=n;i++)for(let j=0;j<=n;j++){Qsets[qkey(i,j,'left')]=new Set();Qsets[qkey(i,j,'right')]=new Set();}
+  agenda = [];
+  trace = [];
+  Tsnapshots = [];
+  finished = false;
+
+  function snap(){ return Tmat.map(row=>row.map(cell=>new Set(cell))); }
+
+  function addTrace(type,head,body,hlTarget,hlSrc,hlQ,litCells,hlScan,hlWork){
+    trace.push({type,head,body,hlTarget:hlTarget||null,hlSrc:hlSrc||[],hlQ:hlQ||null,litCells:litCells||[],hlScan:hlScan||[],hlWork:hlWork||null});
+    Tsnapshots.push(snap());
+  }
+
+  function addToT(item,i,j){
+    if(!Tmat[i][j].has(item)){Tmat[i][j].add(item);agenda.push({item,i,j});return true;}
+    return false;
+  }
+
+  // --------------------------------------------------------
+  // AGENDA PROCESSING FUNCTION
+  // --------------------------------------------------------
+  function processNextAgendaItem() {
+    if (agenda.length === 0) return false;
+    const {item: AH, i, j} = agenda.shift();
+
+    // PROJECT
+    for(const cp of projProds){
+      if(!cp.rhsIsTerminal && cp.rhs === AH){
+        if(addToT(cp.lhs, i, j)){
+          addTrace('project',`PROJECT — <code>${AH}</code> at [${i},${j}]`,
+            `Chain projection <code>${cp.lhs} → ${cp.rhs}</code> fires. Insert <code>${cp.lhs}</code> into T[${i},${j}].`,
+            [i,j],[]);
+        }
+      }
+    }
+
+    // LEFT-EXPAND: AH is the head (right child) in a left-expansion rule
+    for(const ex of expProds){
+      if(ex.expandDir !== 'left') continue;
+      if(ex.right !== AH || ex.rightIsTerm) continue;
+      const BH = ex.lhs;
+      const XH = ex.left;
+      const isTermLeft = ex.leftIsTerm;
+
+      if(Qsets[qkey(i,j,'left')].has(AH)){
+        addTrace('blocked',`LEFT-EXPAND blocked`,
+          `Rule <code>${BH} → ${XH} · ${AH}</code>: <code>${AH}</code>@[${i},${j}] in Q(${i},${j},left). <span class="blocked">Blocked by subsumption.</span>`,
+          [i,j],[],`${i},${j},left`);
+        continue;
+      }
+
+      if(isTermLeft){
+        if(i > 0 && W[i-1] === XH){
+          const ip = i-1;
+          if(addToT(BH, ip, j)){
+            if(isPartialItem(AH)) Qsets[qkey(i,j,'right')].add(AH);
+            addTrace('left-expand',`LEFT-EXPAND — terminal`,
+              `Rule <code>${BH} → ${XH} · ${AH}</code>: terminal <code>${XH}</code> at pos ${i}. Combine → <code>${BH}</code> in T[${ip},${j}].`,
+              [ip,j],[[i,j]]);
+          }
+        } else {
+          addTrace('scan',`LEFT-EXPAND — no terminal match`,
+            `Rule <code>${BH} → ${XH} · ${AH}</code>: need <code>${XH}</code> at pos ${i}. ${i>0?`Found <code>${W[i-1]}</code>.`:'No position to left.'} <span class="skip">No match.</span>`,
+            [i,j],[]);
+        }
+      } else {
+        const scanCells = Array.from({length:i},(_,ip)=>[ip,i]);
+        let anyFound = false;
+        for(let ip = 0; ip < i; ip++){
+          const hasIt = Tmat[ip][i].has(XH);
+          addTrace('check',`LEFT-EXPAND — check T[${ip},${i}]`,
+            `i'=${ip}: looking for <code>${XH}</code> in T[${ip},${i}]: ${hasIt?`<span class="ok">found</span>`:'<span class="skip">not found</span>'}`,
+            [ip,i],[],null,null,scanCells);
+          if(hasIt){
+            if(Qsets[qkey(ip,i,'right')].has(XH)){
+              addTrace('blocked',`LEFT-EXPAND — Q check on <code>${XH}</code>`,
+                `<code>${XH}</code>@[${ip},${i}] in Q(${ip},${i},right). <span class="blocked">Blocked.</span>`,
+                [i,j],[[ip,i]],`${ip},${i},right`,null,scanCells);
+              continue;
+            }
+            if(addToT(BH, ip, j)){
+              if(isPartialItem(XH)) Qsets[qkey(ip,i,'left')].add(AH);
+              if(isPartialItem(AH)) Qsets[qkey(i,j,'right')].add(AH);
+              addTrace('left-expand',`LEFT-EXPAND`,
+                `Rule <code>${BH} → ${XH} · ${AH}</code>: found <code>${XH}</code>@[${ip},${i}]. Combine → <code>${BH}</code> in T[${ip},${j}].`,
+                [ip,j],[[i,j],[ip,i]],null,null,scanCells);
+              anyFound = true;
+            }
+          }
+        }
+        if(!anyFound){
+          addTrace('scan',`LEFT-EXPAND — no match for <code>${XH}</code>`,
+            `Rule <code>${BH} → ${XH} · ${AH}</code>: searched T[i',${i}]. <code>${XH}</code> not found. <span class="skip">No match.</span>`,
+            [i,j],[],null,null,scanCells);
+        }
+      }
+    }
+
+    // RIGHT-EXPAND: AH is the head (left child) in a right-expansion rule
+    for(const ex of expProds){
+      if(ex.expandDir !== 'right') continue;
+      if(ex.left !== AH || ex.leftIsTerm) continue;
+      const BH = ex.lhs;
+      const XH = ex.right;
+      const isTermRight = ex.rightIsTerm;
+
+      if(Qsets[qkey(i,j,'right')].has(AH)){
+        addTrace('blocked',`RIGHT-EXPAND blocked`,
+          `Rule <code>${BH} → ${AH} · ${XH}</code>: <code>${AH}</code>@[${i},${j}] in Q(${i},${j},right). <span class="blocked">Blocked by subsumption.</span>`,
+          [i,j],[],`${i},${j},right`);
+        continue;
+      }
+
+      if(isTermRight){
+        if(j < n && W[j] === XH){
+          const jp = j+1;
+          if(addToT(BH, i, jp)){
+            if(isPartialItem(AH)) Qsets[qkey(i,j,'left')].add(AH);
+            addTrace('right-expand',`RIGHT-EXPAND — terminal`,
+              `Rule <code>${BH} → ${AH} · ${XH}</code>: terminal <code>${XH}</code> at pos ${j+1}. Combine → <code>${BH}</code> in T[${i},${jp}].`,
+              [i,jp],[[i,j]]);
+          }
+        } else {
+          addTrace('scan',`RIGHT-EXPAND — no terminal match`,
+            `Rule <code>${BH} → ${AH} · ${XH}</code>: need <code>${XH}</code> at pos ${j+1}. ${j<n?`Found <code>${W[j]}</code>.`:'End of input.'} <span class="skip">No match.</span>`,
+            [i,j],[]);
+        }
+      } else {
+        const scanCells = Array.from({length:n-j},(_,k)=>[j,j+1+k]);
+        let anyFound = false;
+        for(let jp = j+1; jp <= n; jp++){
+          const hasIt = Tmat[j][jp].has(XH);
+          addTrace('check',`RIGHT-EXPAND — check T[${j},${jp}]`,
+            `j'=${jp}: looking for <code>${XH}</code> in T[${j},${jp}]: ${hasIt?`<span class="ok">found</span>`:'<span class="skip">not found</span>'}`,
+            [j,jp],[],null,null,scanCells);
+          if(hasIt){
+            if(Qsets[qkey(j,jp,'left')].has(XH)){
+              addTrace('blocked',`RIGHT-EXPAND — Q check on <code>${XH}</code>`,
+                `<code>${XH}</code>@[${j},${jp}] in Q(${j},${jp},left). <span class="blocked">Blocked.</span>`,
+                [i,j],[[j,jp]],`${j},${jp},left`,null,scanCells);
+              continue;
+            }
+            if(addToT(BH, i, jp)){
+              if(isPartialItem(XH)) Qsets[qkey(j,jp,'right')].add(XH);
+              if(isPartialItem(AH)) Qsets[qkey(i,j,'left')].add(AH);
+              addTrace('right-expand',`RIGHT-EXPAND`,
+                `Rule <code>${BH} → ${AH} · ${XH}</code>: found <code>${XH}</code>@[${j},${jp}]. Combine → <code>${BH}</code> in T[${i},${jp}].`,
+                [i,jp],[[i,j],[j,jp]],null,null,scanCells);
+              anyFound = true;
+            }
+          }
+        }
+        if(!anyFound){
+          addTrace('scan',`RIGHT-EXPAND — no match for <code>${XH}</code>`,
+            `Rule <code>${BH} → ${AH} · ${XH}</code>: searched T[${j},j']. <code>${XH}</code> not found. <span class="skip">No match.</span>`,
+            [i,j],[],null,null,scanCells);
+        }
+      }
+    }
+
+    // REV-RIGHT: AH arrived as the right sibling; find head to the left (no blocking)
+    for(const ex of expProds){
+      if(ex.expandDir !== 'right') continue;
+      if(ex.right !== AH || ex.rightIsTerm) continue;
+      const BH = ex.lhs;
+      const leftHead = ex.left;
+      const scanCellsRR = Array.from({length:i+1},(_,ip)=>[ip,i]);
+      for(let ip = 0; ip <= i; ip++){
+        const hasIt = Tmat[ip][i].has(leftHead);
+        addTrace('check',`REV-RIGHT — check T[${ip},${i}]`,
+          `i'=${ip}: looking for head <code>${leftHead}</code> in T[${ip},${i}]: ${hasIt?`<span class="ok">found</span>`:'<span class="skip">not found</span>'}`,
+          [ip,i],[],null,null,scanCellsRR);
+        if(hasIt){
+          if(addToT(BH, ip, j)){
+            addTrace('right-expand',`REV-RIGHT — <code>${AH}</code> as sibling`,
+              `Rule <code>${BH} → ${leftHead} · ${AH}</code>: <code>${AH}</code> arrived as right sibling. Head <code>${leftHead}</code> found at [${ip},${i}]. Combine → <code>${BH}</code> in T[${ip},${j}].`,
+              [ip,j],[[i,j],[ip,i]],null,null,scanCellsRR);
+          }
+        }
+      }
+    }
+
+    // REV-LEFT: AH arrived as the left sibling; find head to the right (no blocking)
+    for(const ex of expProds){
+      if(ex.expandDir !== 'left') continue;
+      if(ex.left !== AH || ex.leftIsTerm) continue;
+      const BH = ex.lhs;
+      const rightHead = ex.right;
+      const scanCellsRL = Array.from({length:n-j+1},(_,k)=>[j,j+k]);
+      for(let jp = j; jp <= n; jp++){
+        const hasIt = Tmat[j][jp].has(rightHead);
+        addTrace('check',`REV-LEFT — check T[${j},${jp}]`,
+          `j'=${jp}: looking for head <code>${rightHead}</code> in T[${j},${jp}]: ${hasIt?`<span class="ok">found</span>`:'<span class="skip">not found</span>'}`,
+          [j,jp],[],null,null,scanCellsRL);
+        if(hasIt){
+          if(addToT(BH, i, jp)){
+            addTrace('left-expand',`REV-LEFT — <code>${AH}</code> as sibling`,
+              `Rule <code>${BH} → ${AH} · ${rightHead}</code>: <code>${AH}</code> arrived as left sibling. Head <code>${rightHead}</code> found at [${j},${jp}]. Combine → <code>${BH}</code> in T[${i},${jp}].`,
+              [i,jp],[[i,j],[j,jp]],null,null,scanCellsRL);
+          }
+        }
+      }
+    }
+
+    return true;
+  }
+
+  function drainAgenda(limit) {
+    let safety = 0;
+    while(agenda.length > 0 && safety < (limit||5000)){
+      safety++;
+      processNextAgendaItem();
+    }
+  }
+
+  // --------------------------------------------------------
+  // STEP 1: INIT — scan terminals
+  // --------------------------------------------------------
+  for(let i=1;i<=n;i++){
+    const ai = W[i-1];
+    let found = false;
+    for(const p of projProds){
+      if(p.rhsIsTerminal && p.rhs === ai){
+        addToT(p.lhs, i-1, i);
+        addTrace('init',`INIT — scan position ${i}`,
+          `Terminal <code>${ai}</code> at position ${i} matches projection <code>${p.lhs} → ${p.rhs}</code>. Insert <code>${p.lhs}</code> into T[${i-1},${i}].`,
+          [i-1,i],[],null,[i-1]);
+        found = true;
+      }
+    }
+    if(!found){
+      addTrace('scan',`INIT — scan position ${i}`,
+        `Terminal <code>${ai}</code> at position ${i}: no head projection matches. Skip.`,
+        null,[],null,[i-1]);
+    }
+  }
+
+  // --------------------------------------------------------
+  // STEP 2: BOUNDARY SEEDING — seed T[0,1] and T[n-1,n]
+  // --------------------------------------------------------
+  if(n > 0){
+    const firstTerm = W[0];
+    const lastTerm = W[n-1];
+
+    // Block 1: right-expansion rules, right sibling matches first token → seed T[0,1]
+    for(const ex of expProds){
+      if(ex.expandDir !== 'right') continue;
+      const matches = ex.rightIsTerm ? (ex.right === firstTerm) : Tmat[0][1].has(ex.right);
+      if(matches){
+        if(addToT(ex.lhs, 0, 1)){
+          addTrace('boundary',`BOUNDARY — T[0,1] missing left`,
+            `Rule <code>${ex.lhs} → ${ex.left} · ${ex.right}</code>: right sibling <code>${ex.right}</code> matches first token or is in T[0,1]. Seed <code>${ex.lhs}</code> into T[0,1] — left constituent dropped.`,
+            [0,1],[],null,[0]);
+        }
+      }
+    }
+
+    // Block 2: left-expansion rules, head (right child) already in T[0,1] → seed T[0,1]
+    for(const ex of expProds){
+      if(ex.expandDir !== 'left') continue;
+      if(Tmat[0][1].has(ex.right)){
+        if(addToT(ex.lhs, 0, 1)){
+          addTrace('boundary',`BOUNDARY — T[0,1] missing left`,
+            `Rule <code>${ex.lhs} → ${ex.left} · ${ex.right}</code>: head <code>${ex.right}</code> is in T[0,1]. Seed <code>${ex.lhs}</code> into T[0,1] — left sibling dropped.`,
+            [0,1],[[0,1]],null,[0]);
+        }
+      }
+    }
+
+    // Block 3: left-expansion rules, left sibling matches last token → seed T[n-1,n]
+    for(const ex of expProds){
+      if(ex.expandDir !== 'left') continue;
+      const matches = ex.leftIsTerm ? (ex.left === lastTerm) : Tmat[n-1][n].has(ex.left);
+      if(matches){
+        if(addToT(ex.lhs, n-1, n)){
+          addTrace('boundary',`BOUNDARY — T[n-1,n] missing right`,
+            `Rule <code>${ex.lhs} → ${ex.left} · ${ex.right}</code>: left sibling <code>${ex.left}</code> matches last token or is in T[n-1,n]. Seed <code>${ex.lhs}</code> into T[n-1,n] — right constituent dropped.`,
+            [n-1,n],[],null,[n-1]);
+        }
+      }
+    }
+
+    // Block 4: right-expansion rules, head (left child) already in T[n-1,n] → seed T[n-1,n]
+    for(const ex of expProds){
+      if(ex.expandDir !== 'right') continue;
+      if(Tmat[n-1][n].has(ex.left)){
+        if(addToT(ex.lhs, n-1, n)){
+          addTrace('boundary',`BOUNDARY — T[n-1,n] missing right`,
+            `Rule <code>${ex.lhs} → ${ex.left} · ${ex.right}</code>: head <code>${ex.left}</code> is in T[n-1,n]. Seed <code>${ex.lhs}</code> into T[n-1,n] — right sibling dropped.`,
+            [n-1,n],[[n-1,n]],null,[n-1]);
+        }
+      }
+    }
+  }
+
+  // --------------------------------------------------------
+  // STEP 3: MAIN AGENDA
+  // --------------------------------------------------------
+  drainAgenda(5000);
+
+  // --------------------------------------------------------
+  // STEP 4: L-REDUCE — for k=1..n, inductive fill of T[0,k-1]
+  // --------------------------------------------------------
+  for(let k = 1; k <= n; k++){
+    const visited = new Set();
+    let frontier = [...Tmat[0][k-1]];
+    while(frontier.length > 0){
+      const nextFrontier = [];
+      for(const b of frontier){
+        if(visited.has(b)) continue;
+        visited.add(b);
+        // find right-expansion rules where b is the right sibling
+        for(const ex of expProds){
+          if(ex.expandDir !== 'right' || ex.right !== b || ex.rightIsTerm) continue;
+          if(addToT(ex.lhs, 0, k-1)){
+            nextFrontier.push(ex.lhs);
+            addTrace('l-reduce',`L-REDUCE k=${k} — fill T[0,${k-1}]`,
+              `<code>${b}</code> is right sibling in <code>${ex.lhs} → ${ex.left} · ${b}</code>. Add <code>${ex.lhs}</code> to T[0,${k-1}] — left head is virtual.`,
+              [0,k-1],[],null,[],null,[0,k-1]);
+          }
+        }
+      }
+      frontier = nextFrontier;
+    }
+    drainAgenda(2000);
+  }
+
+  // --------------------------------------------------------
+  // STEP 5: R-REDUCE — only if T[0,n] is still empty
+  // --------------------------------------------------------
+  if(Tmat[0][n].size === 0){
+    for(let k = n-1; k >= 0; k--){
+      const visited = new Set();
+      let frontier = [...Tmat[k+1][n]];
+      while(frontier.length > 0){
+        const nextFrontier = [];
+        for(const b of frontier){
+          if(visited.has(b)) continue;
+          visited.add(b);
+          // find right-expansion rules where b is the left head
+          for(const ex of expProds){
+            if(ex.expandDir !== 'right' || ex.left !== b || ex.leftIsTerm) continue;
+            if(addToT(ex.lhs, k+1, n)){
+              nextFrontier.push(ex.lhs);
+              addTrace('r-reduce',`R-REDUCE k=${k} — fill T[${k+1},${n}]`,
+                `<code>${b}</code> is left head in <code>${ex.lhs} → ${b} · ${ex.right}</code>. Add <code>${ex.lhs}</code> to T[${k+1},${n}] — right sibling is virtual.`,
+                [k+1,n],[],null,[],null,[k+1,n]);
+            }
+          }
+        }
+        frontier = nextFrontier;
+      }
+      drainAgenda(2000);
+    }
+
+    // R-Reduce final pass on T[0,n]
+    {
+      const visited = new Set();
+      let frontier = [...Tmat[0][n]];
+      while(frontier.length > 0){
+        const nextFrontier = [];
+        for(const b of frontier){
+          if(visited.has(b)) continue;
+          visited.add(b);
+          for(const ex of expProds){
+            if(ex.expandDir !== 'right' || ex.left !== b || ex.leftIsTerm) continue;
+            if(addToT(ex.lhs, 0, n)){
+              nextFrontier.push(ex.lhs);
+              addTrace('r-reduce',`R-REDUCE final — T[0,${n}]`,
+                `<code>${b}</code> is left head in <code>${ex.lhs} → ${b} · ${ex.right}</code>. Add <code>${ex.lhs}</code> to T[0,${n}].`,
+                [0,n],[],null,[]);
+            }
+          }
+        }
+        frontier = nextFrontier;
+      }
+      drainAgenda(2000);
+    }
+  }
+
+  // L-Reduce final pass on T[0,n] (always runs)
+  {
+    const visited = new Set();
+    let frontier = [...Tmat[0][n]];
+    while(frontier.length > 0){
+      const nextFrontier = [];
+      for(const b of frontier){
+        if(visited.has(b)) continue;
+        visited.add(b);
+        for(const ex of expProds){
+          if(ex.expandDir !== 'right' || ex.right !== b || ex.rightIsTerm) continue;
+          if(addToT(ex.lhs, 0, n)){
+            nextFrontier.push(ex.lhs);
+            addTrace('l-reduce',`L-REDUCE final — T[0,${n}]`,
+              `<code>${b}</code> is right sibling in <code>${ex.lhs} → ${ex.left} · ${b}</code>. Add <code>${ex.lhs}</code> to T[0,${n}].`,
+              [0,n],[],null,[]);
+          }
+        }
+      }
+      frontier = nextFrontier;
+    }
+    drainAgenda(2000);
+  }
+
+  // --------------------------------------------------------
+  // ACCEPT / REJECT
+  // --------------------------------------------------------
+  const startSym = hcomplete(G.S);
+  if(Tmat[0][n].has(startSym)){
+    addTrace('accept',`ACCEPT`,
+      `<code>${startSym}</code> ∈ T[0,${n}]. Input is in L(G). <span class="ok">✓ ACCEPTED.</span>`,
+      [0,n],[]);
+  } else {
+    // Show what IS in T[0,n] for fragment diagnosis
+    const found = [...Tmat[0][n]].join(', ') || 'nothing';
+    addTrace('reject',`REJECT — fragment result`,
+      `<code>${startSym}</code> ∉ T[0,${n}]. T[0,${n}] contains: <code>${found}</code>. <span class="blocked">✗ Fragment — partial parse.</span>`,
+      [0,n],[]);
+  }
+
+  finished = true;
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render(){
+  const step = (traceIdx >= 0 && traceIdx < trace.length) ? trace[traceIdx] : null;
+  const Tsnap = (traceIdx >= 0 && traceIdx < Tsnapshots.length) ? Tsnapshots[traceIdx] : null;
+  const prevSnap = (traceIdx > 0) ? Tsnapshots[traceIdx-1] : null;
+
+  renderInputBar(step);
+  renderMatrix(Tsnap, prevSnap, step);
+  renderNarr(step);
+  renderLog();
+  renderStatus();
+}
+
+function renderInputBar(step){
+  const litSet = new Set(step ? step.litCells : []);
+  const headTerminals = new Set();
+  for(let r=0;r<G.prods.length;r++){
+    const h = G.prods[r].rhs[heads[r]];
+    if(G.T.has(h)) headTerminals.add(h);
+  }
+  let tokHtml = '';
+  for(let i=0;i<n;i++){
+    const active = litSet.has(i);
+    const isH = headTerminals.has(W[i]);
+    tokHtml += `<div class="ib-cell"><div class="ib-tok ${active?'active':''} ${isH?'head-t':''}">${W[i]}</div></div>`;
+  }
+  document.getElementById('inputBar').innerHTML = `<div style="display:flex;gap:0;">${tokHtml}</div>`;
+}
+
+function renderMatrix(Tsnap, prevSnap, step){
+  if(!Tsnap && traceIdx < 0){
+    Tsnap = [];
+    for(let i=0;i<=n;i++){Tsnap[i]=[];for(let j=0;j<=n;j++)Tsnap[i][j]=new Set();}
+  }
+  if(!Tsnap) return;
+
+  const hlT = step ? step.hlTarget : null;
+  const hlS = step ? step.hlSrc : [];
+  const hlScan = step ? (step.hlScan||[]) : [];
+  const hlWork = step ? step.hlWork : null;
+  const isBoundary = step && step.type === 'boundary';
+  const isAccept = step && step.type === 'accept';
+  const isReject = step && step.type === 'reject';
+
+  let html = `<div class="mgrid" style="grid-template-columns:28px repeat(${n+1},56px);">`;
+  html += '<div class="mhdr"></div>';
+  for(let j=0;j<=n;j++) html += `<div class="mhdr">${j}</div>`;
+
+  for(let i=0;i<=n;i++){
+    html += `<div class="mhdr">${i}</div>`;
+    for(let j=0;j<=n;j++){
+      if(j<=i){ html += '<div class="mcell off"></div>'; continue; }
+      let cls = 'mcell';
+      const isTarget = hlT && hlT[0]===i && hlT[1]===j;
+      const isSrc = hlS.some(x=>x[0]===i&&x[1]===j);
+      const isScanned = hlScan.some(x=>x[0]===i&&x[1]===j);
+      const isWork = hlWork && hlWork[0]===i && hlWork[1]===j;
+      if(isTarget && isAccept) cls += ' hl-ok';
+      else if(isTarget && isReject) cls += ' hl-no';
+      else if(isTarget && isBoundary) cls += ' hl-boundary';
+      else if(isTarget) cls += ' hl-t';
+      else if(isSrc) cls += ' hl-s';
+      else if(isWork) cls += ' hl-work';
+      else if(isScanned) cls += ' hl-scan';
+
+      let inner = '';
+      for(const item of Tsnap[i][j]){
+        const isNew = prevSnap && !prevSnap[i][j].has(item);
+        inner += `<span class="tag ${isNew?'fresh':''}">${item}</span>`;
+      }
+      html += `<div class="${cls}">${inner}</div>`;
+    }
+  }
+  html += '</div>';
+  document.getElementById('matArea').innerHTML = html;
+}
+
+function renderNarr(step){
+  const el = document.getElementById('narrBox');
+  if(!step){
+    el.innerHTML = `<div class="narr-head t-idle">READY</div><div class="narr-body">Press <strong>Step ▶</strong> to advance. Every loop iteration, boundary seed, reduce step, and scan is shown.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="narr-head t-${step.type}">STEP ${traceIdx+1}/${trace.length} · ${step.head}</div><div class="narr-body">${step.body}</div>`;
+}
+
+function renderLog(){
+  const el = document.getElementById('logBox');
+  let html = '';
+  for(let k=0;k<=traceIdx && k<trace.length;k++){
+    const s = trace[k];
+    html += `<div class="le"><span class="ln">${k+1}</span><span class="lt t-${s.type}">${s.type}</span><span class="ld">${s.head}</span></div>`;
+  }
+  el.innerHTML = html;
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderStatus(){
+  document.getElementById('stStep').textContent = `Step ${traceIdx+1}/${trace.length}`;
+  const stEl = document.getElementById('stState');
+  if(traceIdx >= 0 && trace[traceIdx].type === 'accept'){ stEl.textContent='✓ ACCEPTED'; stEl.style.color='var(--green)'; }
+  else if(traceIdx >= 0 && trace[traceIdx].type === 'reject'){ stEl.textContent='✗ Fragment'; stEl.style.color='var(--red)'; }
+  else if(traceIdx >= trace.length-1){ stEl.textContent='Done'; stEl.style.color='var(--dm)'; }
+  else { stEl.textContent = traceIdx < 0 ? 'Ready' : 'Running'; stEl.style.color='var(--gold)'; }
+}
+
+// ============================================================
+// CONTROLS
+// ============================================================
+function doBuild(){
+  stopPlay();
+  try {
+    G = parseGrammar(document.getElementById('gramIn').value);
+    document.getElementById('gramErr').textContent = '';
+  } catch(e){
+    document.getElementById('gramErr').textContent = String(e);
+    return;
+  }
+  W = document.getElementById('inputIn').value.trim().split(/\s+/);
+  n = W.length;
+  heads = G.prods.map(p => {
+    const idx = p.rhs.findIndex(s => G.N.has(s));
+    return idx >= 0 ? idx : 0;
+  });
+  buildHeadEditor();
+  buildHCover();
+  traceIdx = -1;
+  generateFullTrace();
+  render();
+}
+
+function doStep(){
+  if(traceIdx >= trace.length - 1) return;
+  traceIdx++;
+  render();
+}
+
+function doReset(){
+  stopPlay();
+  traceIdx = -1;
+  render();
+}
+
+function startPlay(){
+  if(traceIdx >= trace.length - 1) return;
+  playing = true;
+  document.getElementById('bPlay').textContent = 'Pause ⏸';
+  const speed = parseInt(document.getElementById('sSlider').value);
+  timer = setInterval(()=>{
+    doStep();
+    if(traceIdx >= trace.length - 1) stopPlay();
+  }, speed);
+}
+function stopPlay(){
+  playing = false;
+  document.getElementById('bPlay').textContent = 'Play ▶▶';
+  if(timer){clearInterval(timer);timer=null;}
+}
+
+document.getElementById('bStep').addEventListener('click',()=>{stopPlay();doStep();});
+document.getElementById('bPlay').addEventListener('click',()=>{playing?stopPlay():startPlay();});
+document.getElementById('bReset').addEventListener('click',doReset);
+document.getElementById('btnBuild').addEventListener('click',doBuild);
+document.getElementById('sSlider').addEventListener('input',e=>{
+  document.getElementById('sVal').textContent=e.target.value+'ms';
+  if(playing){stopPlay();startPlay();}
+});
+
+// EXAMPLE GRAMMARS
+const EXAMPLES = {
+  clitic: {
+    gram: `S -> NP VP\nVP -> cl v NP\nNP -> det n`,
+    input: 'det n cl v det n'
+  },
+  ambig: {
+    gram: `S -> NP VP\nVP -> V NP | V NP PP\nNP -> det N | det N PP\nPP -> P NP\nV -> saw\nN -> man | girl | telescope\nP -> with`,
+    input: 'det man saw det girl with det telescope'
+  },
+  arith: {
+    gram: `E -> E + T | T\nT -> T * F | F\nF -> ( E ) | n`,
+    input: 'n + n * n'
+  },
+  fragment: {
+    gram: `S -> NP VP\nVP -> cl v NP\nNP -> det n`,
+    input: 'cl v det n'
+  }
+};
+document.getElementById('exBtns').addEventListener('click', e => {
+  const btn = e.target.closest('[data-ex]');
+  if (!btn) return;
+  const ex = EXAMPLES[btn.dataset.ex];
+  if (!ex) return;
+  document.getElementById('gramIn').value = ex.gram;
+  document.getElementById('inputIn').value = ex.input;
+  doBuild();
+});
+
+// INIT
+doBuild();
+</script>
+</body>
+</html>

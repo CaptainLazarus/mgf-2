@@ -2,24 +2,44 @@ open Types
 open Hcover
 open Table
 
-let process_agenda (tbl : rec_table) (agenda : (h_item * int * int) Queue.t) :
-    unit =
+let show_item = function
+  | PartialItem (r, s, t) -> Printf.sprintf "P(%d,%d,%d)" r s t
+  | CompleteItem nt -> nt
+
+let show_hot = function
+  | HItem i -> show_item i
+  | HTerm t -> Printf.sprintf "'%s'" t
+
+let trace_add tag i j item =
+  Printf.printf "    + %-12s -> T[%d,%d]\n%!" (show_item item) i j;
+  ignore tag
+
+let process_agenda ?(debug = false) (tbl : rec_table)
+    (agenda : (h_item * int * int) Queue.t) : unit =
   let n = tbl.n in
+  let step = ref 0 in
   while not (Queue.is_empty agenda) do
     let a_h, i, j = Queue.pop agenda in
+    incr step;
+    if debug then
+      Printf.printf "[%d] dequeue %-12s from T[%d,%d]\n%!" !step (show_item a_h) i j;
 
     let projected = find_projections_from_item tbl.cover a_h in
     List.iter
       (fun b_h ->
         let deriv = FromProject a_h in
-        if add_item tbl i j b_h deriv then Queue.add (b_h, i, j) agenda)
+        if add_item tbl i j b_h deriv then (
+          if debug then trace_add "project" i j b_h;
+          Queue.add (b_h, i, j) agenda))
       projected;
 
     let eps_projected = find_epsilon_projections tbl.cover a_h in
     List.iter
       (fun b_h ->
         let deriv = FromEpsilon a_h in
-        if add_item tbl i j b_h deriv then Queue.add (b_h, i, j) agenda)
+        if add_item tbl i j b_h deriv then (
+          if debug then trace_add "eps-project" i j b_h;
+          Queue.add (b_h, i, j) agenda))
       eps_projected;
 
     let left_exps = find_left_expansions tbl.cover a_h in
@@ -37,7 +57,11 @@ let process_agenda (tbl : rec_table) (agenda : (h_item * int * int) Queue.t) :
             in
             if can_combine then (
               let deriv = FromLeftExpand (i, x_h, a_h) in
-              if add_item tbl i' j b_h deriv then Queue.add (b_h, i', j) agenda;
+              if add_item tbl i' j b_h deriv then (
+                if debug then
+                  Printf.printf "    + %-12s -> T[%d,%d]  (left-expand: %s + %s)\n%!"
+                    (show_item b_h) i' j (show_hot x_h) (show_item a_h);
+                Queue.add (b_h, i', j) agenda);
               (match x_h with
               | HItem x_item when is_partial x_item ->
                   block_left tbl i' i x_item r s
@@ -61,7 +85,11 @@ let process_agenda (tbl : rec_table) (agenda : (h_item * int * int) Queue.t) :
             in
             if can_combine then (
               let deriv = FromRightExpand (j, a_h, y_h) in
-              if add_item tbl i j' b_h deriv then Queue.add (b_h, i, j') agenda;
+              if add_item tbl i j' b_h deriv then (
+                if debug then
+                  Printf.printf "    + %-12s -> T[%d,%d]  (right-expand: %s + %s)\n%!"
+                    (show_item b_h) i j' (show_item a_h) (show_hot y_h);
+                Queue.add (b_h, i, j') agenda);
               if is_partial a_h then block_left tbl i j a_h r s;
               match y_h with
               | HItem y_item when is_partial y_item ->
@@ -76,8 +104,11 @@ let process_agenda (tbl : rec_table) (agenda : (h_item * int * int) Queue.t) :
         for i' = 0 to i do
           if mem_item tbl i' i left_item then
             let deriv = FromRightExpand (i, left_item, HItem a_h) in
-            if add_item tbl i' j result deriv then
-              Queue.add (result, i', j) agenda
+            if add_item tbl i' j result deriv then (
+              if debug then
+                Printf.printf "    + %-12s -> T[%d,%d]  (rev-right: %s + %s)\n%!"
+                  (show_item result) i' j (show_item left_item) (show_item a_h);
+              Queue.add (result, i', j) agenda)
         done)
       rev_right;
 
@@ -87,8 +118,11 @@ let process_agenda (tbl : rec_table) (agenda : (h_item * int * int) Queue.t) :
         for j' = j to n do
           if mem_item tbl j j' right_item then
             let deriv = FromLeftExpand (j, HItem a_h, right_item) in
-            if add_item tbl i j' result deriv then
-              Queue.add (result, i, j') agenda
+            if add_item tbl i j' result deriv then (
+              if debug then
+                Printf.printf "    + %-12s -> T[%d,%d]  (rev-left: %s + %s)\n%!"
+                  (show_item result) i j' (show_item a_h) (show_item right_item);
+              Queue.add (result, i, j') agenda)
         done)
       rev_left
   done
@@ -157,7 +191,7 @@ let seed_last_cell_with_possible_right_input_completions tbl last_term n agenda
            if add_item tbl (n - 1) n result deriv then
              Queue.add (result, n - 1, n) agenda)
 
-let recognize_tbl (tbl : rec_table) : rec_table =
+let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
   let n = tbl.n in
   let agenda = Queue.create () in
 
@@ -170,7 +204,7 @@ let recognize_tbl (tbl : rec_table) : rec_table =
     seed_first_cell_with_possible_left_input_completions tbl first_term agenda;
     seed_last_cell_with_possible_right_input_completions tbl last_term n agenda);
 
-  process_agenda tbl agenda;
+  process_agenda ~debug tbl agenda;
 
   for k = 1 to n do
     let frontier = ref (List.map fst tbl.entries.(0).(k - 1).items) in
@@ -191,7 +225,7 @@ let recognize_tbl (tbl : rec_table) : rec_table =
         !frontier;
       frontier := !next_frontier
     done;
-    process_agenda tbl agenda
+    process_agenda ~debug tbl agenda
   done;
 
   if tbl.entries.(0).(n).items = [] then (
@@ -214,7 +248,7 @@ let recognize_tbl (tbl : rec_table) : rec_table =
           !frontier;
         frontier := !next_frontier
       done;
-      process_agenda tbl agenda
+      process_agenda ~debug tbl agenda
     done;
 
     let frontier = ref (List.map fst tbl.entries.(0).(n).items) in
@@ -235,7 +269,7 @@ let recognize_tbl (tbl : rec_table) : rec_table =
         !frontier;
       frontier := !next_frontier
     done;
-    process_agenda tbl agenda);
+    process_agenda ~debug tbl agenda);
 
   let frontier = ref (List.map fst tbl.entries.(0).(n).items) in
   let visited = Hashtbl.create 16 in
@@ -255,7 +289,7 @@ let recognize_tbl (tbl : rec_table) : rec_table =
       !frontier;
     frontier := !next_frontier
   done;
-  process_agenda tbl agenda;
+  process_agenda ~debug tbl agenda;
 
   tbl
 
@@ -265,14 +299,14 @@ let recognize (g : grammar) (input : string list) : rec_table =
 let prepare (g : grammar) : prepared_grammar =
   { pg_grammar = g; pg_cover = compute_h_cover g }
 
-let recognize_with (pg : prepared_grammar) (input : string list) : rec_table =
+let recognize_with ?(debug = false) (pg : prepared_grammar) (input : string list) : rec_table =
   let n = List.length input in
   let entries =
     Array.init (n + 1) (fun _ ->
         Array.init (n + 1) (fun _ ->
             { items = []; blocked_left = []; blocked_right = [] }))
   in
-  recognize_tbl
+  recognize_tbl ~debug
     {
       n;
       entries;
