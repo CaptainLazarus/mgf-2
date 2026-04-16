@@ -17,7 +17,7 @@ let active_grammar =
 type run_mode = Parse of Output.display_mode | DumpCover
 [@@warning "-37"]
 
-let mode = Parse Output.Trees
+let mode = Parse Output.Strings
 (* let mode = DumpCover *)
 
 (* ------------------------------------------------------------------ *)

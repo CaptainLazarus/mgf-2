@@ -17,7 +17,7 @@ let rec collect_tokens ?grammar ~virtuals tree =
   match tree with
   | Leaf s -> [ pretty_token s ]
   | Virtual _ when not virtuals -> []
-  | Virtual x -> [ Printf.sprintf "<%s>" (Print.label_virtual ?grammar x) ]
+  | Virtual x -> [ Print.label_virtual ?grammar x ]
   | Node (_, []) -> []
   | Node (_, children) ->
       List.concat_map (collect_tokens ?grammar ~virtuals) children
@@ -32,6 +32,25 @@ let count_gaps tree =
     | Leaf _ -> 0
   in
   go tree
+
+let collect_boundary_virtuals ?grammar tree =
+  let rec go = function
+    | Virtual x -> [ `V (Print.label_virtual ?grammar x) ]
+    | Leaf _ -> [ `L ]
+    | Node (_, children) -> List.concat_map go children
+  in
+  let items = go tree in
+  let rec take_leading acc = function
+    | `V s :: rest -> take_leading (s :: acc) rest
+    | rest -> (List.rev acc, rest)
+  in
+  let rec take_trailing acc = function
+    | `V s :: rest -> take_trailing (s :: acc) rest
+    | rest -> (List.rev acc, rest)
+  in
+  let left_vs, rest = take_leading [] items in
+  let right_vs, _ = take_trailing [] (List.rev rest) in
+  (left_vs, right_vs)
 
 (* ------------------------------------------------------------------ *)
 (* Display modes                                                       *)
@@ -62,22 +81,22 @@ let print_results ?grammar tbl roots mode =
       let trees = reconstruct_trees_virtual tbl rc.root in
       if trees = [] then ()
       else
-        let fmt_syms syms =
-          String.concat " "
-            (List.map
-               (function
-                 | Terminal t -> Printf.sprintf "\"%s\"" t | Nonterminal n -> n)
-               syms)
+        let left_vs, right_vs =
+          match trees with
+          | t :: _ ->
+              let l, r = collect_boundary_virtuals ?grammar t in
+              (List.sort_uniq String.compare l, List.sort_uniq String.compare r)
+          | [] -> ([], [])
         in
         let gap_label =
-          if rc.missing_left = [] && rc.missing_right = [] then "complete"
+          if left_vs = [] && right_vs = [] then "complete"
           else
             let parts =
               List.filter_map
-                (fun (side, syms) ->
-                  if syms = [] then None
-                  else Some (Printf.sprintf "%s: [%s]" side (fmt_syms syms)))
-                [ ("L", rc.missing_left); ("R", rc.missing_right) ]
+                (fun (side, vs) ->
+                  if vs = [] then None
+                  else Some (Printf.sprintf "%s: [%s]" side (String.concat ", " vs)))
+                [ ("L", left_vs); ("R", right_vs) ]
             in
             "partial — " ^ String.concat "  " parts
         in
