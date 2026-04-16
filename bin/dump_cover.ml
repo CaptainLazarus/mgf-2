@@ -1,4 +1,5 @@
 open Practice.Types
+open Practice.Grammars
 
 (* Grammar where the same token "x" appears as both:
    - right sibling in A -> B x  (head=B, right expansion)
@@ -8,7 +9,7 @@ open Practice.Types
      - right expansion: A -> B x, x matches as right sibling, B is missing left boundary
      - left expansion:  C -> D x, x matches as head (already in T[0,1]), D is missing left boundary
 *)
-let g : grammar =
+let _g : grammar =
   {
     nonterminals = [ "S"; "A"; "C" ];
     terminals = [ "x"; "y" ];
@@ -47,7 +48,7 @@ let show_hot = function
   | HTerm t -> Printf.sprintf "'%s'" t
 
 let () =
-  let cover = Practice.Hcover.compute_h_cover g in
+  let cover = Practice.Hcover.compute_h_cover grammar_astar in
 
   Printf.printf "=== right_expansions (result, left_head, right_sibling) ===\n";
   List.iter
@@ -69,7 +70,7 @@ let () =
       Printf.printf "  %s  <-  %s\n" (show_item item) (show_hot src))
     cover.projections;
 
-  let first_term = "x" in
+  let first_term = "a" in
   Printf.printf "\n=== boundary seeding T[0,1] if first token = '%s' ===\n"
     first_term;
   Printf.printf
