@@ -1,11 +1,11 @@
 (* Expands inline grouped alternatives in g4-style grammars to plain CFG rules.
 
    Handles:
-     (A B C)    -> grpN_ : A B C
      (A B C)*   -> grpN_*   (star desugared later)
      (A B C)+   -> grpN_+   (plus desugared later)
-     (A B C)?   -> grpN_    where grpN_ : A B C | epsilon
-     (A | B | C) with any suffix
+     (A B C)?   -> grpN_    where grpN_ -> A B C | epsilon
+     (A | B | C) with no suffix -> inlined as multiple parent alternatives
+       e.g. x (A | B) y -> x A y  and  x B y
 
    Also normalises single-token optionals before expanding groups:
      x?         -> (x)?
@@ -24,7 +24,6 @@ let fresh () =
 (* Low-level string scanners that respect single-quoted strings        *)
 (* ------------------------------------------------------------------ *)
 
-(* Find the next unquoted '(' from position start. Returns Some idx or None. *)
 let find_open (s : string) (start : int) : int option =
   let n = String.length s in
   let i = ref start in
@@ -41,7 +40,6 @@ let find_open (s : string) (start : int) : int option =
   done;
   !result
 
-(* Find the matching unquoted ')'. [start] points just after the opening '('. *)
 let find_close (s : string) (start : int) : int =
   let n = String.length s in
   let depth = ref 1 in
@@ -115,15 +113,12 @@ let is_ident_char c =
   || (c >= '0' && c <= '9')
   || c = '_'
 
-(* Convert every x? and 'tok'? into (x)? and ('tok')? so the main
-   expand loop can handle them uniformly. *)
 let normalize_optionals (s : string) : string =
   let n = String.length s in
   let buf = Buffer.create n in
   let i = ref 0 in
   while !i < n do
     if s.[!i] = '\'' then (
-      (* Collect quoted token *)
       let start = !i in
       incr i;
       while !i < n && s.[!i] <> '\'' do
@@ -139,7 +134,6 @@ let normalize_optionals (s : string) : string =
         incr i)
       else Buffer.add_string buf tok)
     else if is_ident_char s.[!i] then (
-      (* Collect identifier *)
       let start = !i in
       while !i < n && is_ident_char s.[!i] do
         incr i
@@ -159,38 +153,45 @@ let normalize_optionals (s : string) : string =
   Buffer.contents buf
 
 (* ------------------------------------------------------------------ *)
-(* Main expansion loop                                                 *)
+(* Group expansion                                                     *)
 (* ------------------------------------------------------------------ *)
 
-let make_rule (name : string) (alts : string list) : string =
-  match alts with
-  | [] -> Printf.sprintf "\n%s\n    : epsilon\n    ;" name
-  | _ ->
-      Printf.sprintf "\n%s\n    : %s\n    ;" name
-        (String.concat "\n    | " alts)
-
-let rec expand_groups (s : string) : string =
+(* Expand groups within a single RHS alternative string.
+   Returns:
+     - list of expanded alternative strings (multiple when inline alts are inlined)
+     - list of (name, alternatives) pairs for new synthetic rules needed *)
+let rec expand_alt (s : string) : string list * (string * string list) list =
+  let s = normalize_optionals s in
   match find_open s 0 with
-  | None -> s
+  | None -> ([ String.trim s ], [])
   | Some pos ->
       let close = find_close s (pos + 1) in
       let content = String.sub s (pos + 1) (close - pos - 1) in
-      let after = close + 1 in
-      let name = fresh () in
-      let suffix, end_pos, new_rule =
-        if after < String.length s then
-          match s.[after] with
-          | ('*' | '+') as c ->
-              (String.make 1 c, after + 1, make_rule name (split_alts content))
-          | '?' ->
-              (* desugar ? by adding epsilon alternative *)
-              let alts = split_alts content @ [ "epsilon" ] in
-              ("", after + 1, make_rule name alts)
-          | _ -> ("", after, make_rule name (split_alts content))
-        else ("", after, make_rule name (split_alts content))
-      in
+      let after_pos = close + 1 in
       let before = String.sub s 0 pos in
-      let rest = String.sub s end_pos (String.length s - end_pos) in
-      expand_groups (before ^ name ^ suffix ^ rest ^ new_rule)
-
-let expand (s : string) : string = s |> normalize_optionals |> expand_groups
+      let len = String.length s in
+      let suffix = if after_pos < len then Some s.[after_pos] else None in
+      (match suffix with
+      | Some ('*' | '+' as c) ->
+          let name = fresh () in
+          let rest = String.sub s (after_pos + 1) (len - after_pos - 1) in
+          let alts = List.map String.trim (split_alts content) in
+          let main_exp, main_new =
+            expand_alt (before ^ name ^ String.make 1 c ^ rest)
+          in
+          (main_exp, (name, alts) :: main_new)
+      | Some '?' ->
+          let name = fresh () in
+          let rest = String.sub s (after_pos + 1) (len - after_pos - 1) in
+          let alts = List.map String.trim (split_alts content) @ [ "epsilon" ] in
+          let main_exp, main_new = expand_alt (before ^ name ^ rest) in
+          (main_exp, (name, alts) :: main_new)
+      | _ ->
+          (* No suffix: inline-expand, duplicating the parent alternative *)
+          let alts = List.map String.trim (split_alts content) in
+          let rest = String.sub s after_pos (len - after_pos) in
+          List.fold_left
+            (fun (acc_exp, acc_new) alt ->
+              let exp, new_r = expand_alt (before ^ alt ^ rest) in
+              (acc_exp @ exp, acc_new @ new_r))
+            ([], []) alts)

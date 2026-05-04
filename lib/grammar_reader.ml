@@ -154,14 +154,42 @@ let convert_to_grammar (xs : (symbol * symbol list * int option) list) : grammar
 let extract_grammar_from_string (content : string) =
   reset ();
   Grammar_expander.reset ();
-  content
-  (* Strip lexer rules before expanding so group rules from lexer bodies
-     don't leak in as parser rules. *)
-  |> filter_content
-  |> List.map (fun r -> r ^ " ;")
-  |> String.concat "\n" |> Grammar_expander.expand |> split_unquoted ';'
-  |> List.filter is_parse_rule |> split_rules |> split_rhs |> expand_production
-  |> desugar_production_strings |> convert_to_grammar
+  let queue = Queue.create () in
+  content |> filter_content |> List.iter (fun r -> Queue.add r queue);
+  let tuples = ref [] in
+  while not (Queue.is_empty queue) do
+    let rule_str = Queue.pop queue in
+    match split_first_unquoted ':' rule_str with
+    | None -> ()
+    | Some (lhs_raw, rhs_raw) ->
+        let lhs = String.trim lhs_raw in
+        (* Use split_alts (paren-aware) for top-level alternatives *)
+        let top_alts =
+          Grammar_expander.split_alts rhs_raw |> List.map String.trim
+        in
+        List.iter
+          (fun alt ->
+            let expanded_alts, new_rule_pairs =
+              Grammar_expander.expand_alt alt
+            in
+            List.iter
+              (fun (name, alts) ->
+                Queue.add (name ^ " : " ^ String.concat " | " alts) queue)
+              new_rule_pairs;
+            List.iter
+              (fun exp_alt ->
+                let raw_tokens =
+                  String.split_on_char ' ' exp_alt
+                  |> List.map String.trim
+                  |> List.filter (fun s -> s <> "")
+                in
+                let tokens, head_raw = extract_head_marker raw_tokens in
+                let head_opt = Option.map (adjust_head_for_plus tokens) head_raw in
+                tuples := (lhs, tokens, head_opt) :: !tuples)
+              expanded_alts)
+          top_alts
+  done;
+  List.rev !tuples |> desugar_production_strings |> convert_to_grammar
 
 let extract_grammar (file : string) =
   read_file file |> remove_comments |> extract_grammar_from_string
