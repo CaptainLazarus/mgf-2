@@ -212,6 +212,39 @@ let test_uppercase_plus () =
     "TOKEN TOKEN" true
     (Query.is_accepted (recog_str g [ "TOKEN"; "TOKEN" ]))
 
+(* s : A+ B* — plus needs >=1 (no epsilon rule), star allows 0 *)
+let test_plus_and_star () =
+  let g = "s : A+ B* ;" in
+  Alcotest.(check bool) "A accepted" true
+    (Query.is_accepted (recog_str g [ "A" ]));
+  Alcotest.(check bool) "A A A accepted" true
+    (Query.is_accepted (recog_str g [ "A"; "A"; "A" ]));
+  Alcotest.(check bool) "A B accepted" true
+    (Query.is_accepted (recog_str g [ "A"; "B" ]));
+  Alcotest.(check bool) "A A B B accepted" true
+    (Query.is_accepted (recog_str g [ "A"; "A"; "B"; "B" ]));
+  (* Z is not in the grammar at all — terminal seeding never fires, T[0,n] stays empty *)
+  Alcotest.(check bool) "Z rejected (unknown token)" false
+    (Query.is_accepted (recog_str g [ "Z" ]));
+  (* tokens in wrong order: B then A can't reduce to s even as a fragment,
+     because no production ever places B before A in a way that seeds T[0,2] *)
+  Alcotest.(check bool) "B A rejected (wrong order)" false
+    (Query.is_accepted (recog_str g [ "B"; "A" ]));
+  (* A+ must not have an epsilon rule — its only productions are recursive *)
+  let gram = grammar_of_string g in
+  let aplus_prods = List.filter (fun (p : Types.production) -> p.lhs = "A+") gram.productions in
+  Alcotest.(check bool) "A+ has no epsilon production" false
+    (List.exists (fun (p : Types.production) -> p.rhs = []) aplus_prods)
+
+(* np : 'det' 'n' — det n valid, n det impossible even as a fragment
+   because no production places n before det in a seeding path *)
+let test_wrong_order_rejected () =
+  let g = "np : 'det' 'n' ;" in
+  Alcotest.(check bool) "det n accepted" true
+    (Query.is_accepted (recog_str g [ "det"; "n" ]));
+  Alcotest.(check bool) "n det rejected" false
+    (Query.is_accepted (recog_str g [ "n"; "det" ]))
+
 (* token normalisation with a hardcoded map (no file I/O) *)
 let test_token_normalize_mapped () =
   let map = Hashtbl.of_seq (List.to_seq [ ("If", "if"); ("LeftParen", "(") ]) in
@@ -424,6 +457,31 @@ let test_virtual_same_as_omit_for_complete () =
     "same count for complete parse" (List.length omit) (List.length virtual_)
 
 (* ============================================================ *)
+(*  Suite 10b — lazy reconstruction                           *)
+(* ============================================================ *)
+
+let test_limit_respected () =
+  (* astar ["a";"a";"a"] produces multiple trees — limit should cap the count *)
+  let pg = Recognize.prepare Grammars.grammar_astar in
+  let tbl = Recognize.recognize_with pg [ "a"; "a"; "a" ] in
+  let trees_limit1 = Reconstruct.reconstruct_trees_omit ~limit:1 tbl "Astar" in
+  Alcotest.(check bool) "limit:1 gives at most 1 tree" true (List.length trees_limit1 <= 1)
+
+let test_lazy_same_results_as_before () =
+  (* for small grammars, lazy should give same trees as the old eager version *)
+  let tbl = recognized Grammars.grammar_gcl [ "det"; "n"; "cl"; "v"; "det"; "n" ] in
+  let trees = Reconstruct.reconstruct_trees_omit tbl "S" in
+  Alcotest.(check int) "gcl still gives 1 tree" 1 (List.length trees)
+
+let test_astar_lazy_terminates () =
+  (* astar on a longer input — should terminate quickly, not hang *)
+  let pg = Recognize.prepare Grammars.grammar_astar in
+  let tbl = Recognize.recognize_with pg [ "a"; "a"; "a"; "a"; "a" ] in
+  let trees = Reconstruct.reconstruct_trees_omit tbl "Astar" in
+  Alcotest.(check bool) "astar 5 tokens terminates and gives trees" true
+    (List.length trees > 0)
+
+(* ============================================================ *)
 (*  Suite 11 — Symbol table reset                             *)
 (* ============================================================ *)
 
@@ -475,6 +533,8 @@ let () =
           Alcotest.test_case "optional B?" `Quick test_optional;
           Alcotest.test_case "inline alternatives" `Quick test_inline_alts;
           Alcotest.test_case "uppercase TOKEN+" `Quick test_uppercase_plus;
+          Alcotest.test_case "plus and star" `Quick test_plus_and_star;
+          Alcotest.test_case "wrong order rejected" `Quick test_wrong_order_rejected;
           Alcotest.test_case "token normalize" `Quick
             test_token_normalize_mapped;
         ] );
@@ -519,6 +579,14 @@ let () =
             test_virtual_trees_for_fragment;
           Alcotest.test_case "virtual=omit complete" `Quick
             test_virtual_same_as_omit_for_complete;
+        ] );
+      ( "lazy reconstruction",
+        [
+          Alcotest.test_case "limit respected" `Quick test_limit_respected;
+          Alcotest.test_case "same results small grammar" `Quick
+            test_lazy_same_results_as_before;
+          Alcotest.test_case "astar 5 tokens terminates" `Quick
+            test_astar_lazy_terminates;
         ] );
       ( "symbol table",
         [

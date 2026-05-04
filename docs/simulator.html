@@ -266,6 +266,10 @@ function buildHeadEditor() {
   for (let r = 0; r < G.prods.length; r++) {
     document.getElementById(`hsel_${r}`).addEventListener('change', e => {
       heads[r] = parseInt(e.target.value);
+      buildHCover();
+      traceIdx = -1;
+      generateFullTrace();
+      render();
     });
   }
 }
@@ -951,10 +955,12 @@ function doBuild(){
   }
   W = document.getElementById('inputIn').value.trim().split(/\s+/);
   n = W.length;
-  heads = G.prods.map(p => {
-    const idx = p.rhs.findIndex(s => G.N.has(s));
-    return idx >= 0 ? idx : 0;
-  });
+  if (heads.length !== G.prods.length) {
+    heads = G.prods.map(p => {
+      const idx = p.rhs.findIndex(s => G.N.has(s));
+      return idx >= 0 ? idx : 0;
+    });
+  }
   buildHeadEditor();
   buildHCover();
   traceIdx = -1;

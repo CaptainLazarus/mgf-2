@@ -7,17 +7,17 @@ type grammar_source =
 
 let active_grammar =
   (* Inline (Grammars.grammar_astar, [ "a"; "a"; "a" ]) *)
-  (* Inline (Grammars.grammar_gcl,   [ "det"; "n"; "cl"; "v"; "det"; "n" ]) *)
+  (* Inline (Grammars.grammar_gcl,   [ "n"; "cl"]) *)
   (* Inline (Grammars.grammar_epsilon, [ "b" ]) *)
   (* Inline (Grammars.grammar_arith,   [ "n"; "+"; "n" ]) *)
   (* File ("grammars/simple.g4",  ["V" ; "DET" ; "N"]) *)
-  (* File ("grammars/lisp.g4",    ["RPAREN"; "RPAREN"; "RPAREN"]) *)
+  (* File ("grammars/lisp.g4", ["RPAREN" ; "RPAREN" ; "RPAREN"]) *)
   File ("grammars/cparser.g4", Io.tokens_from_java ())
 
 type run_mode = Parse of Output.display_mode | DumpCover
 [@@warning "-37"]
 
-let mode = Parse Output.Strings
+let mode = Parse Output.Trees
 (* let mode = DumpCover *)
 
 (* ------------------------------------------------------------------ *)
