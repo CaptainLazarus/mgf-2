@@ -1,5 +1,7 @@
 open Types
+open Convert
 open Print
+open Display
 open Recognize
 open Query
 open Reconstruct

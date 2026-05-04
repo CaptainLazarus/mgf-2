@@ -17,7 +17,7 @@ let rec collect_tokens ?grammar ~virtuals tree =
   match tree with
   | Leaf s -> [ pretty_token s ]
   | Virtual _ when not virtuals -> []
-  | Virtual x -> [ Print.label_virtual ?grammar x ]
+  | Virtual x -> [ label_virtual ?grammar x ]
   | Node (_, []) -> []
   | Node (_, children) ->
       List.concat_map (collect_tokens ?grammar ~virtuals) children
@@ -35,7 +35,7 @@ let count_gaps tree =
 
 let collect_boundary_virtuals ?grammar tree =
   let rec go = function
-    | Virtual x -> [ `V (Print.label_virtual ?grammar x) ]
+    | Virtual x -> [ `V (label_virtual ?grammar x) ]
     | Leaf _ -> [ `L ]
     | Node (_, children) -> List.concat_map go children
   in

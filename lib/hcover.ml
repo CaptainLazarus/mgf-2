@@ -1,5 +1,5 @@
 open Types
-open Print
+open Convert
 
 let symbol_to_h_item_or_terminal = function
   | Terminal t -> HTerm t
