@@ -1,6 +1,28 @@
 open Types
 open Convert
 
+let dump_cover (cover : h_cover) =
+  Printf.printf "=== projections (result <- source) ===\n";
+  List.iter
+    (fun (item, src) ->
+      Printf.printf "  %-20s <-  %s\n" (short_string_of_h_item item)
+        (string_of_h_item_or_terminal src))
+    cover.projections;
+  Printf.printf "\n=== right_expansions (result <- left_head + right_sibling) ===\n";
+  List.iter
+    (fun (result, left_item, y_h) ->
+      Printf.printf "  %-20s <-  %-20s + %s\n" (short_string_of_h_item result)
+        (short_string_of_h_item left_item)
+        (string_of_h_item_or_terminal y_h))
+    cover.right_expansions;
+  Printf.printf "\n=== left_expansions (result <- left_sibling + right_head) ===\n";
+  List.iter
+    (fun (result, x_h, right_item) ->
+      Printf.printf "  %-20s <-  %-20s + %s\n" (short_string_of_h_item result)
+        (string_of_h_item_or_terminal x_h)
+        (short_string_of_h_item right_item))
+    cover.left_expansions
+
 let print_grammar g =
   Printf.printf "+-- Grammar %s+\n" (String.make 49 '-');
   List.iter

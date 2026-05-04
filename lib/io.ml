@@ -94,3 +94,18 @@ let token_of_json j = j |> member "token" |> to_string
 let tokens_from_java () =
   run_java_and_read_tokens ()
   |> List.map (fun j -> token_of_json j |> normalize_token)
+
+let gen_tree_file = "grammars/gen_tree.txt"
+
+let print_gen_tree () =
+  match (try Some (open_in gen_tree_file) with Sys_error _ -> None) with
+  | None -> ()
+  | Some ic ->
+      Printf.printf "┌─ gen tree ─────────────────────────\n";
+      (try
+         while true do
+           Printf.printf "│  %s\n" (input_line ic)
+         done
+       with End_of_file -> ());
+      close_in ic;
+      Printf.printf "└────────────────────────────────────\n\n"
