@@ -6,6 +6,8 @@
   print
   hcover
   table
+  seed
+  worklist
   recognize
   query
   reconstruct
