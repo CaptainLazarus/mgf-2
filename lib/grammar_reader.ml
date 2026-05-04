@@ -33,13 +33,8 @@ let extract_head_marker (tokens : string list) : string list * int option =
   in
   go [] 0 tokens
 
-(* Each x+ before the head expands to x x*, shifting the head rightward by 1. *)
-let adjust_head_for_plus (tokens : string list) (raw_pos : int) : int =
-  let n_plus_before =
-    List.length
-      (List.filteri (fun i tok -> i < raw_pos - 1 && ends_with_plus tok) tokens)
-  in
-  raw_pos + n_plus_before
+let adjust_head_for_plus (_tokens : string list) (raw_pos : int) : int =
+  raw_pos
 
 let expand_production (production_rules : (string * string list) list) =
   let rec expand_rhs_helper lhs rhs acc =
@@ -67,9 +62,9 @@ let expand_production (production_rules : (string * string list) list) =
 
 let convert_to_symbol (s : string) : symbol =
   let n = String.length s in
-  (* Generated star-rule names like StringLiteral_star must be NonTerminal
-     even when the base name starts uppercase. *)
-  if n > 0 && s.[n - 1] = '*' then NonTerminal s
+  (* Generated star/plus-rule names must be NonTerminal even when the base
+     name starts uppercase. *)
+  if n > 0 && (s.[n - 1] = '*' || s.[n - 1] = '+') then NonTerminal s
   else if starts_with_single_quote_or_is_uppercase s then
     if starts_with_single_quote s then
       Terminal (String.sub s 1 (String.length s - 2))
@@ -98,15 +93,15 @@ let split_rhs (production_rules : (string * string) list) :
          ( String.trim (fst x),
            split_unquoted '|' (snd x) |> List.map String.trim ))
 
-let convert_plus_to_star (q : (string * string list * int option) Queue.t)
+let convert_plus_rule (q : (string * string list * int option) Queue.t)
     (s : string) : string list =
   let base = String.sub s 0 (String.length s - 1) in
-  let base_star = base ^ "*" in
-  if not (has_seen base_star) then (
-    mark_seen base_star;
-    Queue.add (base_star, [ base; base_star ], None) q;
-    Queue.add (base_star, [ "epsilon" ], None) q);
-  [ base; base ^ "*" ]
+  let base_plus = base ^ "+" in
+  if not (has_seen base_plus) then (
+    mark_seen base_plus;
+    Queue.add (base_plus, [ base; base_plus ], None) q;
+    Queue.add (base_plus, [ base ], None) q);
+  [ base_plus ]
 
 (* x* appears directly in input (e.g. from inline-group expansion).
    Generates: x* : x x* | epsilon  and returns [x*]. *)
@@ -125,7 +120,7 @@ let desugar_rhs (q : (string * string list * int option) Queue.t)
     | [] -> List.rev acc
     | x :: xs ->
         let expanded =
-          if ends_with_plus x then convert_plus_to_star q x
+          if ends_with_plus x then convert_plus_rule q x
           else if ends_with_star x then convert_star_rule q x
           else [ x ]
         in

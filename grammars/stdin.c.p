@@ -49,4 +49,4 @@
 # 1 "grammars/stdin.c"
 
 # 1 "grammars/stdin.c"
-= b + 3
+a*b
