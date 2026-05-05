@@ -36,7 +36,7 @@ let infer_parse_roots tbl =
       (fun (item, _) ->
         match item with
         | CompleteItem nt ->
-            Some { root = nt; missing_left = []; missing_right = [] }
+            Some { root = nt; item = CompleteItem nt; missing_left = []; missing_right = [] }
         | PartialItem (r, s, t) ->
             let prod = find_production tbl r in
             let rhs = rhs_arr prod in
@@ -44,6 +44,7 @@ let infer_parse_roots tbl =
             Some
               {
                 root = prod.lhs;
+                item = PartialItem (r, s, t);
                 missing_left = Array.to_list (Array.sub rhs 0 s);
                 missing_right = Array.to_list (Array.sub rhs t (len - t));
               })
@@ -85,6 +86,7 @@ let infer_parse_roots tbl =
                 Some
                   {
                     root = prod.lhs;
+                    item = CompleteItem nt;
                     missing_left = missing;
                     missing_right = [];
                   })

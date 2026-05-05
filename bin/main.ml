@@ -10,9 +10,9 @@ let active_grammar =
   (* Inline (Grammars.grammar_gcl,   [ "n"; "cl"]) *)
   (* Inline (Grammars.grammar_epsilon, [ "b" ]) *)
   (* Inline (Grammars.grammar_arith,   [ "n"; "+"; "n" ]) *)
-  (* File ("grammars/simple.g4",  ["V" ; "DET" ; "N"]) *)
+  File ("grammars/simple.g4",  ["V" ; "DET"])
   (* File ("grammars/lisp.g4", ["RPAREN" ; "RPAREN" ; "RPAREN"]) *)
-  File ("grammars/cparser.g4", Io.tokens_from_java ())
+  (* File ("grammars/cparser.g4", Io.tokens_from_java ()) *)
 
 type run_mode = Parse of Output.display_mode | DumpCover
 [@@warning "-37"]
@@ -35,9 +35,9 @@ let () =
   match mode with
   | DumpCover ->
       let pg = Recognize.prepare grammar in
-      Display.dump_cover pg.pg_cover
+      Display.dump_cover grammar pg.pg_cover
   | Parse display_mode ->
-      Io.print_gen_tree ();
+      (* Io.print_gen_tree (); *)
       let pg = Recognize.prepare grammar in
       let tbl = Recognize.recognize_with pg tokens in
       Printf.printf "Table items: %d\n%!" (Query.count_table_items tbl);

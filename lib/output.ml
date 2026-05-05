@@ -78,7 +78,7 @@ let print_tree_result ?grammar i n_unique gaps tree =
 let print_results ?grammar tbl roots mode =
   List.iter
     (fun (rc : root_candidate) ->
-      let trees = reconstruct_trees_virtual ~limit:5 tbl rc.root in
+      let trees = reconstruct_trees_virtual_from ~limit:5 tbl rc.item in
       if trees = [] then ()
       else
         let left_vs, right_vs =
