@@ -17,7 +17,7 @@ let rec collect_tokens ?grammar ~virtuals tree =
   match tree with
   | Leaf s -> [ pretty_token s ]
   | Virtual _ when not virtuals -> []
-  | Virtual x -> [ Print.label_virtual ?grammar x ]
+  | Virtual x -> [ label_virtual ?grammar x ]
   | Node (_, []) -> []
   | Node (_, children) ->
       List.concat_map (collect_tokens ?grammar ~virtuals) children
@@ -35,7 +35,7 @@ let count_gaps tree =
 
 let collect_boundary_virtuals ?grammar tree =
   let rec go = function
-    | Virtual x -> [ `V (Print.label_virtual ?grammar x) ]
+    | Virtual x -> [ `V (label_virtual ?grammar x) ]
     | Leaf _ -> [ `L ]
     | Node (_, children) -> List.concat_map go children
   in
@@ -78,7 +78,7 @@ let print_tree_result ?grammar i n_unique gaps tree =
 let print_results ?grammar tbl roots mode =
   List.iter
     (fun (rc : root_candidate) ->
-      let trees = reconstruct_trees_virtual ~limit:5 tbl rc.root in
+      let trees = reconstruct_trees_virtual_from ~limit:5 tbl rc.item in
       if trees = [] then ()
       else
         let left_vs, right_vs =

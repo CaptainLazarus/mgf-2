@@ -3,10 +3,10 @@ open Practice
 let () =
   let domain_grammar = Grammar_reader.extract_grammar "../grammars/lisp.g4" in
   let converted = Grammar_converter.convert_grammar domain_grammar in
-  Print.print_grammar converted;
+  Display.print_grammar converted;
   let run input =
     let tbl = Htable.run_and_print converted input in
-    Print.print_root_candidates (Query.infer_parse_roots tbl);
+    Display.print_root_candidates (Query.infer_parse_roots tbl);
     Htable.print_trees tbl "lisp_"
   in
   (* atom *)

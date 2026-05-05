@@ -3,9 +3,13 @@
  (libraries str yojson unix)
  (modules
   types
+  convert
   print
+  display
   hcover
   table
+  seed
+  worklist
   recognize
   query
   reconstruct

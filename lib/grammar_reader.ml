@@ -33,13 +33,8 @@ let extract_head_marker (tokens : string list) : string list * int option =
   in
   go [] 0 tokens
 
-(* Each x+ before the head expands to x x*, shifting the head rightward by 1. *)
-let adjust_head_for_plus (tokens : string list) (raw_pos : int) : int =
-  let n_plus_before =
-    List.length
-      (List.filteri (fun i tok -> i < raw_pos - 1 && ends_with_plus tok) tokens)
-  in
-  raw_pos + n_plus_before
+let adjust_head_for_plus (_tokens : string list) (raw_pos : int) : int =
+  raw_pos
 
 let expand_production (production_rules : (string * string list) list) =
   let rec expand_rhs_helper lhs rhs acc =
@@ -67,9 +62,9 @@ let expand_production (production_rules : (string * string list) list) =
 
 let convert_to_symbol (s : string) : symbol =
   let n = String.length s in
-  (* Generated star-rule names like StringLiteral_star must be NonTerminal
-     even when the base name starts uppercase. *)
-  if n > 0 && s.[n - 1] = '*' then NonTerminal s
+  (* Generated star/plus-rule names must be NonTerminal even when the base
+     name starts uppercase. *)
+  if n > 0 && (s.[n - 1] = '*' || s.[n - 1] = '+') then NonTerminal s
   else if starts_with_single_quote_or_is_uppercase s then
     if starts_with_single_quote s then
       Terminal (String.sub s 1 (String.length s - 2))
@@ -98,15 +93,15 @@ let split_rhs (production_rules : (string * string) list) :
          ( String.trim (fst x),
            split_unquoted '|' (snd x) |> List.map String.trim ))
 
-let convert_plus_to_star (q : (string * string list * int option) Queue.t)
+let convert_plus_rule (q : (string * string list * int option) Queue.t)
     (s : string) : string list =
   let base = String.sub s 0 (String.length s - 1) in
-  let base_star = base ^ "*" in
-  if not (has_seen base_star) then (
-    mark_seen base_star;
-    Queue.add (base_star, [ base; base_star ], None) q;
-    Queue.add (base_star, [ "epsilon" ], None) q);
-  [ base; base ^ "*" ]
+  let base_plus = base ^ "+" in
+  if not (has_seen base_plus) then (
+    mark_seen base_plus;
+    Queue.add (base_plus, [ base; base_plus ], None) q;
+    Queue.add (base_plus, [ base ], None) q);
+  [ base_plus ]
 
 (* x* appears directly in input (e.g. from inline-group expansion).
    Generates: x* : x x* | epsilon  and returns [x*]. *)
@@ -125,7 +120,7 @@ let desugar_rhs (q : (string * string list * int option) Queue.t)
     | [] -> List.rev acc
     | x :: xs ->
         let expanded =
-          if ends_with_plus x then convert_plus_to_star q x
+          if ends_with_plus x then convert_plus_rule q x
           else if ends_with_star x then convert_star_rule q x
           else [ x ]
         in
@@ -159,14 +154,42 @@ let convert_to_grammar (xs : (symbol * symbol list * int option) list) : grammar
 let extract_grammar_from_string (content : string) =
   reset ();
   Grammar_expander.reset ();
-  content
-  (* Strip lexer rules before expanding so group rules from lexer bodies
-     don't leak in as parser rules. *)
-  |> filter_content
-  |> List.map (fun r -> r ^ " ;")
-  |> String.concat "\n" |> Grammar_expander.expand |> split_unquoted ';'
-  |> List.filter is_parse_rule |> split_rules |> split_rhs |> expand_production
-  |> desugar_production_strings |> convert_to_grammar
+  let queue = Queue.create () in
+  content |> filter_content |> List.iter (fun r -> Queue.add r queue);
+  let tuples = ref [] in
+  while not (Queue.is_empty queue) do
+    let rule_str = Queue.pop queue in
+    match split_first_unquoted ':' rule_str with
+    | None -> ()
+    | Some (lhs_raw, rhs_raw) ->
+        let lhs = String.trim lhs_raw in
+        (* Use split_alts (paren-aware) for top-level alternatives *)
+        let top_alts =
+          Grammar_expander.split_alts rhs_raw |> List.map String.trim
+        in
+        List.iter
+          (fun alt ->
+            let expanded_alts, new_rule_pairs =
+              Grammar_expander.expand_alt alt
+            in
+            List.iter
+              (fun (name, alts) ->
+                Queue.add (name ^ " : " ^ String.concat " | " alts) queue)
+              new_rule_pairs;
+            List.iter
+              (fun exp_alt ->
+                let raw_tokens =
+                  String.split_on_char ' ' exp_alt
+                  |> List.map String.trim
+                  |> List.filter (fun s -> s <> "")
+                in
+                let tokens, head_raw = extract_head_marker raw_tokens in
+                let head_opt = Option.map (adjust_head_for_plus tokens) head_raw in
+                tuples := (lhs, tokens, head_opt) :: !tuples)
+              expanded_alts)
+          top_alts
+  done;
+  List.rev !tuples |> desugar_production_strings |> convert_to_grammar
 
 let extract_grammar (file : string) =
   read_file file |> remove_comments |> extract_grammar_from_string

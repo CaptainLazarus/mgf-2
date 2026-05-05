@@ -66,6 +66,7 @@ type tree =
 (* Root inference *)
 type root_candidate = {
   root : string;
+  item : h_item;
   missing_left : symbol list;
   missing_right : symbol list;
 }

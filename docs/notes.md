@@ -83,6 +83,10 @@ Projection is deferred: combine produces a new item → enqueue → dequeue late
 
 The function is doing 6 distinct things inline: project, eps-project, left-expand, right-expand, rev-right, rev-left. Each block is structurally similar (filter cover list → scan → add_item → enqueue). Should be broken into smaller focused functions. The debug logging also adds noise. Defer until the algorithm is fully understood.
 
+## grammar_expander — synthetic rule names should derive from parent
+
+Anonymous repetition groups like `(a | b)*` must be given a fresh rule name since they have no name in the original G4. Currently they get counter-based names like `grp172_*`. These should instead derive from the parent rule — e.g. `declarator_star0_` — since the new pipeline in `grammar_reader` has the parent `lhs` available when `expand_alt` is called. Plain `(a | b)` groups (no suffix) are already inlined as multiple parent alternatives and need no name.
+
 ## process_agenda — debug trace available
 
 `process_agenda` and `recognize_with` accept an optional `~debug:true` flag. When enabled, logs each dequeue and every new item added, annotated with the rule that fired (project, eps-project, left-expand, right-expand, rev-right, rev-left). Off by default — no impact on tests or normal runs.

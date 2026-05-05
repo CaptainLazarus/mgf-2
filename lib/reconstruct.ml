@@ -117,16 +117,36 @@ and subs_for_x mode visited memo tbl x i j : tree list Seq.t =
   | HTerm t -> Seq.return [ Leaf t ]
   | HItem h_item -> get_subtrees mode visited memo tbl h_item i j
 
-let reconstruct_trees ?(limit = 50) mode tbl nt =
+let sym_to_virtual = function
+  | Terminal t -> Virtual (HTerm t)
+  | Nonterminal nt -> Virtual (HItem (CompleteItem nt))
+
+let reconstruct_trees_from ?(limit = 50) mode tbl item =
   let visited = Hashtbl.create 16 in
   let memo = Hashtbl.create 64 in
-  let seq = get_subtrees mode visited memo tbl (CompleteItem nt) 0 tbl.n in
+  let seq = get_subtrees mode visited memo tbl item 0 tbl.n in
   let raw = drain_seq limit seq in
-  List.sort_uniq compare
-    (List.filter_map (function [ t ] -> Some t | _ -> None) raw)
+  let wrap children =
+    match item with
+    | CompleteItem _ -> (match children with [ t ] -> Some t | _ -> None)
+    | PartialItem (r, s, t) ->
+        let prod = List.find (fun p -> p.index = r) tbl.grammar.productions in
+        let rhs = Array.of_list prod.rhs in
+        let len = Array.length rhs in
+        let left_v = Array.to_list (Array.sub rhs 0 s) |> List.map sym_to_virtual in
+        let right_v = Array.to_list (Array.sub rhs t (len - t)) |> List.map sym_to_virtual in
+        Some (Node (prod.lhs, left_v @ children @ right_v))
+  in
+  List.sort_uniq compare (List.filter_map wrap raw)
+
+let reconstruct_trees ?(limit = 50) mode tbl nt =
+  reconstruct_trees_from ~limit mode tbl (CompleteItem nt)
 
 let reconstruct_trees_virtual ?(limit = 50) tbl nt =
   reconstruct_trees ~limit `Virtual tbl nt
 
 let reconstruct_trees_omit ?(limit = 50) tbl nt =
   reconstruct_trees ~limit `Omit tbl nt
+
+let reconstruct_trees_virtual_from ?(limit = 50) tbl item =
+  reconstruct_trees_from ~limit `Virtual tbl item
