@@ -1,27 +1,59 @@
 open Types
 open Convert
 
-let dump_cover (cover : h_cover) =
-  Printf.printf "=== projections (result <- source) ===\n";
+let render_item g = function
+  | CompleteItem nt -> nt
+  | PartialItem (r, s, t) ->
+      let prod = List.find (fun p -> p.index = r) g.productions in
+      let rhs = Array.of_list prod.rhs in
+      let n = Array.length rhs in
+      let buf = Buffer.create 32 in
+      Buffer.add_string buf prod.lhs;
+      Buffer.add_string buf " \xe2\x86\x92"; (* → *)
+      for i = 0 to n - 1 do
+        Buffer.add_char buf ' ';
+        if i = s then Buffer.add_char buf '[';
+        let sym = string_of_symbol rhs.(i) in
+        if i = prod.head_pos - 1 then (
+          Buffer.add_char buf '*';
+          Buffer.add_string buf sym;
+          Buffer.add_char buf '*')
+        else Buffer.add_string buf sym;
+        if i = t - 1 then Buffer.add_char buf ']'
+      done;
+      Buffer.contents buf
+
+let render_hot g = function
+  | HTerm t -> Printf.sprintf "\"%s\"" t
+  | HItem item -> render_item g item
+
+let dump_cover g (cover : h_cover) =
+  Printf.printf "=== Projections (%d) ===\n" (List.length cover.projections);
   List.iter
     (fun (item, src) ->
-      Printf.printf "  %-20s <-  %s\n" (short_string_of_h_item item)
-        (string_of_h_item_or_terminal src))
+      Printf.printf "  %-40s  ←  %s\n" (render_item g item) (render_hot g src))
     cover.projections;
-  Printf.printf "\n=== right_expansions (result <- left_head + right_sibling) ===\n";
+  Printf.printf "\n=== Right Expansions (%d)  (result ← left_head + right_sibling) ===\n"
+    (List.length cover.right_expansions);
   List.iter
     (fun (result, left_item, y_h) ->
-      Printf.printf "  %-20s <-  %-20s + %s\n" (short_string_of_h_item result)
-        (short_string_of_h_item left_item)
-        (string_of_h_item_or_terminal y_h))
+      Printf.printf "  %-40s  ←  %-40s  +  %s\n"
+        (render_item g result) (render_item g left_item) (render_hot g y_h))
     cover.right_expansions;
-  Printf.printf "\n=== left_expansions (result <- left_sibling + right_head) ===\n";
+  Printf.printf "\n=== Left Expansions (%d)  (result ← left_sibling + right_head) ===\n"
+    (List.length cover.left_expansions);
   List.iter
     (fun (result, x_h, right_item) ->
-      Printf.printf "  %-20s <-  %-20s + %s\n" (short_string_of_h_item result)
-        (string_of_h_item_or_terminal x_h)
-        (short_string_of_h_item right_item))
-    cover.left_expansions
+      Printf.printf "  %-40s  ←  %-40s  +  %s\n"
+        (render_item g result) (render_hot g x_h) (render_item g right_item))
+    cover.left_expansions;
+  Printf.printf "\n=== Epsilon Projections (%d) ===\n"
+    (List.length cover.epsilon_projections);
+  List.iter
+    (fun (result, source) ->
+      Printf.printf "  %-40s  ←  %s  [ε]\n"
+        (render_item g result) (render_item g source))
+    cover.epsilon_projections
 
 let print_grammar g =
   Printf.printf "+-- Grammar %s+\n" (String.make 49 '-');
@@ -93,9 +125,7 @@ let print_root_candidates candidates =
         if c.missing_left = [] && c.missing_right = [] then
           Printf.printf "| COMPLETE : %s\n" c.root
         else
-          let fmt syms = String.concat " " (List.map string_of_symbol syms) in
-          Printf.printf "| PARTIAL  : %s  (missing left: [%s]  right: [%s])\n"
-            c.root (fmt c.missing_left) (fmt c.missing_right))
+          Printf.printf "| PARTIAL  : %s\n" c.root)
       candidates;
   Printf.printf "+%s+\n" (String.make 60 '-')
 
