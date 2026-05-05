@@ -76,14 +76,17 @@ let normalize_token t = normalize_token_with (Lazy.force clexer_map) t
 let run_java_and_read_tokens () =
   let ic =
     Unix.open_process_in
-      "java -cp \"./grammars:./grammars/antlr-4.13.1-complete.jar\" Main"
+      "java -cp \"./grammars:./grammars/antlr-4.13.1-complete.jar\" Main --nopp"
   in
   let rec read_all acc =
-    try
-      let line = input_line ic in
-      let json = Yojson.Basic.from_string line in
-      read_all (json :: acc)
-    with End_of_file -> List.rev acc
+    match input_line ic with
+    | exception End_of_file -> List.rev acc
+    | line -> (
+        match Yojson.Basic.from_string line with
+        | json -> read_all (json :: acc)
+        | exception _ ->
+            Printf.eprintf "io: skipping malformed JSON line: %s\n%!" line;
+            read_all acc)
   in
   let output = read_all [] in
   ignore (Unix.close_process_in ic);
