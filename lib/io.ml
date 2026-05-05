@@ -85,8 +85,17 @@ let run_java_and_read_tokens () =
         match Yojson.Basic.from_string line with
         | json -> read_all (json :: acc)
         | exception _ ->
-            Printf.eprintf "io: skipping malformed JSON line: %s\n%!" line;
-            read_all acc)
+            (* StringLiteral tokens with embedded quotes produce malformed JSON.
+               Recover by extracting just the token name and substituting a
+               safe placeholder lexeme. *)
+            let re = Str.regexp "{\"token\": \"\\([^\"]*\\)\"" in
+            if Str.string_match re line 0 then
+              let token_name = Str.matched_group 1 line in
+              let safe = Printf.sprintf {|{"token": "%s", "lexeme": "<string>"}|} token_name in
+              read_all (Yojson.Basic.from_string safe :: acc)
+            else (
+              Printf.eprintf "io: skipping malformed JSON line: %s\n%!" line;
+              read_all acc))
   in
   let output = read_all [] in
   ignore (Unix.close_process_in ic);
