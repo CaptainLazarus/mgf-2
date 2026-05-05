@@ -83,6 +83,10 @@ Projection is deferred: combine produces a new item → enqueue → dequeue late
 
 The function is doing 6 distinct things inline: project, eps-project, left-expand, right-expand, rev-right, rev-left. Each block is structurally similar (filter cover list → scan → add_item → enqueue). Should be broken into smaller focused functions. The debug logging also adds noise. Defer until the algorithm is fully understood.
 
+## Main.java — string literal tokens produce malformed JSON
+
+`token.getText()` for a StringLiteral includes the surrounding C quote chars (`"hello"`). The printf then wraps it in another pair of JSON string quotes, producing `""hello""` which Yojson rejects. Currently handled in `io.ml` by catching the parse failure and substituting `<string>` as the lexeme. Real fix: in `Main.java`, strip the outer quotes from string literal text before JSON-encoding, or switch to a proper JSON library for output.
+
 ## grammar_expander — synthetic rule names should derive from parent
 
 Anonymous repetition groups like `(a | b)*` must be given a fresh rule name since they have no name in the original G4. Currently they get counter-based names like `grp172_*`. These should instead derive from the parent rule — e.g. `declarator_star0_` — since the new pipeline in `grammar_reader` has the parent `lhs` available when `expand_alt` is called. Plain `(a | b)` groups (no suffix) are already inlined as multiple parent alternatives and need no name.
