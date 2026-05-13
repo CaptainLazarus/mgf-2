@@ -1,3 +1,3 @@
-s : [np] vp EOF;
-vp : CL V [np];
-np : [DET] N;
+s : [vp] EOF;
+vp : (CL | XX) [V] np;
+np : [DET] (N | CL);

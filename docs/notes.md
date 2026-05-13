@@ -91,6 +91,32 @@ The function is doing 6 distinct things inline: project, eps-project, left-expan
 
 Anonymous repetition groups like `(a | b)*` must be given a fresh rule name since they have no name in the original G4. Currently they get counter-based names like `grp172_*`. These should instead derive from the parent rule — e.g. `declarator_star0_` — since the new pipeline in `grammar_reader` has the parent `lhs` available when `expand_alt` is called. Plain `(a | b)` groups (no suffix) are already inlined as multiple parent alternatives and need no name.
 
+## Fragment parsing as zipper navigation (theoretical sketch)
+
+Treating ω = α β γ, β is the *focus* of a zipper and α, γ are its left and right context. Fragment parsing then becomes: find all valid positions in the zipper hierarchy where β could sit as the focused subtree.
+
+A zipper position corresponds to a (nonterminal, hole-location) pair — the nonterminal whose production has a hole at the position where β would slot in. The flanks α and γ are the sibling material already accounted for in the zipper context.
+
+Claim: R(β) = the set of nonterminals reachable by climbing the zipper from β's focus position, over all valid zipper contexts consistent with the grammar. The H-cover algorithm then enumerates these zipper positions mechanically via the recognition table.
+
+Open: formalise "zipper hierarchy" as a tree-zipper over derivation trees, and show the climbing in R(αβγ) = ∪_{A∈R(β)} R(α'Aγ') corresponds exactly to one step up the zipper spine.
+
+## Terminology overload — "complete" / "partial" (TODO: resolve)
+
+Two different axes both use "complete" / "partial":
+
+1. **H-cover table items** (`Types`):
+   - `CompleteItem nt` — recognized nonterminal over a span
+   - `PartialItem (r, s, t)` — H-cover artifact, production r with head at positions s..t
+
+2. **Root candidates** (output labels in `frag_test`, `infer_parse_roots`):
+   - "complete" = `missing_left = [] && missing_right = []`
+   - "partial" = has missing left or right context
+
+These are related but not the same. A `CompleteItem` at T[0,n] always produces a complete root candidate. A `PartialItem` always produces a partial one. But the `inferred` section of `infer_parse_roots` can produce partial root candidates *from* `CompleteItem`s (climbing NT through productions), breaking the 1:1 mapping.
+
+Need to decide: rename table items, rename output labels, or both. Goal is no overloaded terminology, especially for the paper.
+
 ## process_agenda — debug trace available
 
 `process_agenda` and `recognize_with` accept an optional `~debug:true` flag. When enabled, logs each dequeue and every new item added, annotated with the rule that fired (project, eps-project, left-expand, right-expand, rev-right, rev-left). Off by default — no impact on tests or normal runs.

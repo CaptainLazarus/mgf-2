@@ -110,6 +110,9 @@ X. Generate real code and parse generated code --> Only real problem. Reverse en
 6. Tree comparision
 7. Throw precedence away when rewriting (or) Remove epsilon ----> What happens ? Science.
 
+-----
+
+1. Take a string of tokens, randomly cut it up (a real func),  and then test results and see what happens with the output.
 
 Examples
 1. if (new_flags & VM_IO)

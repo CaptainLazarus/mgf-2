@@ -102,10 +102,15 @@ let run_java_and_read_tokens () =
   output
 
 let token_of_json j = j |> member "token" |> to_string
+let lexeme_of_json j = j |> member "lexeme" |> to_string
 
 let tokens_from_java () =
   run_java_and_read_tokens ()
   |> List.map (fun j -> token_of_json j |> normalize_token)
+
+let tokens_and_lexemes_from_java () =
+  run_java_and_read_tokens ()
+  |> List.map (fun j -> (token_of_json j |> normalize_token, lexeme_of_json j))
 
 let gen_tree_file = "grammars/gen_tree.txt"
 

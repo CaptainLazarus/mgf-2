@@ -19,3 +19,7 @@
 (executable
  (name dump_cover)
  (libraries practice))
+
+(executable
+ (name rand_split)
+ (libraries practice))

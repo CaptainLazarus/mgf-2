@@ -1,4 +1,1 @@
-main() {
-
-    // Writing print statement to print hello world
-    printf("Hello World
+; while ( originalNum != 0 )   
