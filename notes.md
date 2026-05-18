@@ -129,3 +129,12 @@ Examples
 6. ENETC_RXB_DMA_SIZE_XDP);
 
 7. if (rx_ring->vsi->type == ICE_VSI_PF &&
+
+
+============================
+
+Things to do
+1. Write about this.
+2. Write intro on tool (Problem + Solution) --> Problem itself --> Story of why theory came to be --> Theory --> Implementation
+3. Write what implementation is doing -->
+4. Randomly generate code (stand alone object) feed into a normal parser of the lang and gets accepted --> Should validate --> In principle...don't throw away input tokens and get something that can be parsed --> Take code that can be parsed, feed it into actual parser, then get it parsed by an actual parser --> Only way to evaluate the idea for what this should be --> Needs to be done.

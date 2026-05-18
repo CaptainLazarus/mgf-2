@@ -29,10 +29,11 @@ type frag_stats = {
   code     : string;
   tokens   : string list;
   roots    : Types.root_candidate list;
+  tbl      : Types.rec_table;
   complete : int;
   partial  : int;
   items    : int;
-}
+} [@@warning "-69"]
 
 let compute_stats grammar pg tok_lex_arr (i, j) =
   let slice  = Array.to_list (Array.sub tok_lex_arr i (j - i)) in
@@ -47,18 +48,19 @@ let compute_stats grammar pg tok_lex_arr (i, j) =
   let partial  = List.length roots - complete in
   let items    = Query.count_table_items tbl in
   ignore grammar;
-  { code; tokens; roots; complete; partial; items }
+  { code; tokens; roots; tbl; complete; partial; items }
 
 let print_stats_table results =
-  Printf.printf "\n%-45s  %8s  %7s  %5s\n" "Fragment" "Complete" "Partial" "Items";
-  Printf.printf "%s\n" (String.make 72 '-');
+  Printf.printf "\n%-45s  %4s  %8s  %7s  %5s\n" "Fragment" "Toks" "Complete" "Partial" "Items";
+  Printf.printf "%s\n" (String.make 78 '-');
   List.iter (fun r ->
     let display =
       if String.length r.code > 44
       then String.sub r.code 0 41 ^ "..."
       else r.code
     in
-    Printf.printf "%-45s  %8d  %7d  %5d\n" display r.complete r.partial r.items)
+    Printf.printf "%-45s  %4d  %8d  %7d  %5d\n"
+      display (List.length r.tokens) r.complete r.partial r.items)
     results
 
 let print_detail r =
@@ -66,7 +68,22 @@ let print_detail r =
   Printf.printf "  code  : %s\n" r.code;
   Printf.printf "  tokens: [%s]\n%!" (String.concat " " r.tokens);
   Printf.printf "%s\n\n" sep;
-  Display.print_root_candidates r.roots
+  Display.print_root_candidates r.roots;
+  let seen = Hashtbl.create 8 in
+  let _distinct_roots =
+    List.filter (fun (rc : Types.root_candidate) ->
+      if Hashtbl.mem seen rc.root then false
+      else (Hashtbl.replace seen rc.root (); true))
+      r.roots
+    |> fun rs -> List.filteri (fun i _ -> i < 5) rs
+  in
+  ()
+  (* if distinct_roots <> [] then begin
+    Printf.printf "\nTrees (first %d distinct root%s):\n"
+      (List.length distinct_roots)
+      (if List.length distinct_roots = 1 then "" else "s");
+    Output.print_results r.tbl distinct_roots Output.Trees
+  end *)
 
 (* ------------------------------------------------------------------ *)
 
@@ -107,8 +124,7 @@ let () =
         | [] ->
             Random.self_init ();
             List.init 10 (fun _ ->
-              let len = 3 + Random.int 8 in
-              let len = min len n in
+              let len = 1 + Random.int n in
               let i   = if n <= len then 0 else Random.int (n - len) in
               (i, i + len))
         | ss -> List.map (fun (i, j) -> (max 0 i, min n j)) ss

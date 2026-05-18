@@ -1,7 +1,7 @@
 open Types
 open Table
 
-let memo_cap = 20
+let memo_cap = 10
 
 let drain_seq n seq =
   let result = ref [] and count = ref 0 in
