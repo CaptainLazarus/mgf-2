@@ -180,7 +180,7 @@ Processing item $I'$ at $T[i,j]$ applies four rules:
 
 The algorithm terminates because $T$ is finite and each item is enqueued at most once.
 
-== Correctness
+== Correctness (Completeness under membership assumption)
 
 *Theorem:* If there exists a nonterminal $A in N$ and a derivation tree rooted at $A$ whose yield (with zero or more leaves replaced by virtual gap symbols) equals $omega$, then a valid item appears in $T[0,n]$ after the algorithm completes.
 
