@@ -1,0 +1,153 @@
+open Types
+
+type forest_node =
+  | FLeaf of string
+  | FVirtual of h_item_or_terminal
+  | FNode of h_item * forest_node list
+
+type state_entry = h_item * forest_node list
+
+type state = state_entry list
+
+(* NOTE: verify merge_into logic — when item already seen, we append all new nodes
+   and re-project them. Check this is correct for all callers. *)
+(* merge nodes for item into seen; return updated seen and the new nodes to project *)
+let merge_into seen item nodes =
+  match List.assoc_opt item seen with
+  | None -> ((item, nodes) :: seen, nodes)
+  | Some _ ->
+      let seen' = List.map (fun (i, ns) -> if i = item then (i, ns @ nodes) else (i, ns)) seen in
+      (seen', nodes)
+
+(* look up token in projections, return initial state entries *)
+let seed (cover : h_cover) (token : string) : state =
+  let rec close worklist seen =
+    match worklist with
+    | [] -> seen
+    | (item, nodes) :: rest ->
+        let (seen', new_nodes) = merge_into seen item nodes in
+        if new_nodes = [] then close rest seen'
+        else
+          let projected =
+            List.filter_map (fun (result, src) ->
+              match src with
+              | HItem i when i = item ->
+                  let ns = List.map (fun node -> FNode (result, [node])) new_nodes in
+                  Some (result, ns)
+              | _ -> None)
+              cover.projections
+          in
+          close (projected @ rest) seen'
+  in
+  let initial =
+    List.filter_map (fun (item, src) ->
+      match src with
+      | HTerm t when t = token -> Some (item, [FLeaf token])
+      | _ -> None)
+      cover.projections
+  in
+  close initial []
+
+(* inject virtual left siblings for items missing left context, fixpoint *)
+let left_boundary_fill (cover : h_cover) (s : state) : state =
+  let rec close worklist seen =
+    match worklist with
+    | [] -> seen
+    | (item, nodes) :: rest ->
+        let (seen', new_nodes) = merge_into seen item nodes in
+        if new_nodes = [] then close rest seen'
+        else
+          let new_items =
+            List.filter_map (fun (result, x_h, right_item) ->
+              if right_item = item then
+                let ns = List.map (fun node -> FNode (result, [FVirtual x_h; node])) new_nodes in
+                Some (result, ns)
+              else None)
+              cover.left_expansions
+          in
+          close (new_items @ rest) seen'
+  in
+  close s []
+
+(* inject virtual right siblings for items missing right context, fixpoint *)
+let right_boundary_fill (cover : h_cover) (s : state) : state =
+  let rec close worklist seen =
+    match worklist with
+    | [] -> seen
+    | (item, nodes) :: rest ->
+        let (seen', new_nodes) = merge_into seen item nodes in
+        if new_nodes = [] then close rest seen'
+        else
+          let new_items =
+            List.filter_map (fun (result, left_item, y_h) ->
+              if left_item = item then
+                let ns = List.map (fun node -> FNode (result, [node; FVirtual y_h])) new_nodes in
+                Some (result, ns)
+              else None)
+              cover.right_expansions
+          in
+          close (new_items @ rest) seen'
+  in
+  close s []
+
+(* find all valid combinations between accumulated state and new items *)
+let combine (cover : h_cover) (acc : state) (new_items : state) : state =
+  let raw =
+    List.concat_map (fun (l_item, l_nodes) ->
+      List.concat_map (fun (r_item, r_nodes) ->
+        let right_hits =
+          List.filter_map (fun (result, left_item, y_h) ->
+            if left_item = l_item && y_h = HItem r_item then
+              let nodes = List.concat_map
+                (fun ln -> List.map (fun rn -> FNode (result, [ln; rn])) r_nodes) l_nodes in
+              Some (result, nodes)
+            else None)
+            cover.right_expansions
+        in
+        let left_hits =
+          List.filter_map (fun (result, x_h, right_item) ->
+            if right_item = r_item && x_h = HItem l_item then
+              let nodes = List.concat_map
+                (fun ln -> List.map (fun rn -> FNode (result, [ln; rn])) r_nodes) l_nodes in
+              Some (result, nodes)
+            else None)
+            cover.left_expansions
+        in
+        right_hits @ left_hits)
+      new_items)
+    acc
+  in
+  let rec close worklist seen =
+    match worklist with
+    | [] -> seen
+    | (item, nodes) :: rest ->
+        let (seen', new_nodes) = merge_into seen item nodes in
+        if new_nodes = [] then close rest seen'
+        else
+          let projected =
+            List.filter_map (fun (result, src) ->
+              match src with
+              | HItem i when i = item ->
+                  let ns = List.map (fun node -> FNode (result, [node])) new_nodes in
+                  Some (result, ns)
+              | _ -> None)
+              cover.projections
+          in
+          close (projected @ rest) seen'
+  in
+  close raw []
+
+(* main loop: left_boundary_fill first token, combine across tokens, right_boundary_fill last *)
+let scan (pg : prepared_grammar) (tokens : string list) : state =
+  let cover = pg.pg_cover in
+  match tokens with
+  | [] -> []
+  | [t] -> left_boundary_fill cover (right_boundary_fill cover (seed cover t))
+  | first :: rest ->
+      let state0 = left_boundary_fill cover (seed cover first) in
+      let rec loop acc = function
+        | [] -> acc
+        | [last] -> combine cover acc (right_boundary_fill cover (seed cover last))
+        | t :: ts -> loop (combine cover acc (seed cover t)) ts
+      in
+      loop state0 rest

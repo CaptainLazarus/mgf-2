@@ -107,6 +107,19 @@ let grammar_epsilon : grammar =
   }
 
 (* Astar -> A Astar | ε, A -> a *)
+let grammar_abc : grammar =
+  {
+    nonterminals = [ "A"; "B"; "C" ];
+    terminals = [ "w1"; "w2"; "w3" ];
+    productions =
+      [
+        { index = 1; lhs = "A"; rhs = [ Nonterminal "B"; Nonterminal "C" ]; head_pos = 1 };
+        { index = 2; lhs = "B"; rhs = [ Terminal "w1" ]; head_pos = 1 };
+        { index = 3; lhs = "C"; rhs = [ Terminal "w2"; Terminal "w3" ]; head_pos = 1 };
+      ];
+    start = "A";
+  }
+
 let grammar_astar : grammar =
   {
     nonterminals = [ "Astar"; "A" ];

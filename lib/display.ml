@@ -1,6 +1,10 @@
 open Types
 open Convert
 
+let render_item_short = function
+  | CompleteItem nt -> Printf.sprintf "I_%s" nt
+  | PartialItem (r, s, t) -> Printf.sprintf "I(%d,%d,%d)" r s t
+
 let render_item g = function
   | CompleteItem nt -> nt
   | PartialItem (r, s, t) ->
@@ -26,6 +30,28 @@ let render_item g = function
 let render_hot g = function
   | HTerm t -> Printf.sprintf "\"%s\"" t
   | HItem item -> render_item g item
+
+let dump_cover_short (cover : h_cover) =
+  Printf.printf "=== Projections (%d) ===\n" (List.length cover.projections);
+  List.iter
+    (fun (item, src) ->
+      let src_str = match src with HTerm t -> Printf.sprintf "\"%s\"" t | HItem i -> render_item_short i in
+      Printf.printf "  %-15s  <-  %s\n" (render_item_short item) src_str)
+    cover.projections;
+  Printf.printf "\n=== Right Expansions (%d) ===\n" (List.length cover.right_expansions);
+  List.iter
+    (fun (result, left_item, y_h) ->
+      let y_str = match y_h with HTerm t -> Printf.sprintf "\"%s\"" t | HItem i -> render_item_short i in
+      Printf.printf "  %-15s  <-  %-15s  +  %s\n"
+        (render_item_short result) (render_item_short left_item) y_str)
+    cover.right_expansions;
+  Printf.printf "\n=== Left Expansions (%d) ===\n" (List.length cover.left_expansions);
+  List.iter
+    (fun (result, x_h, right_item) ->
+      let x_str = match x_h with HTerm t -> Printf.sprintf "\"%s\"" t | HItem i -> render_item_short i in
+      Printf.printf "  %-15s  <-  %-15s  +  %s\n"
+        (render_item_short result) x_str (render_item_short right_item))
+    cover.left_expansions
 
 let dump_cover g (cover : h_cover) =
   Printf.printf "=== Projections (%d) ===\n" (List.length cover.projections);

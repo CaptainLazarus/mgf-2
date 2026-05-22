@@ -6,6 +6,7 @@ type grammar_source =
 [@@warning "-37"]
 
 let active_grammar =
+  (* Inline (Grammars.grammar_abc, [ "w1"; "w2" ]) *)
   (* Inline (Grammars.grammar_astar, [ "a"; "a"; "a" ]) *)
   (* Inline (Grammars.grammar_gcl,   ["det"; "n"  ; "cl"; "v"  ; "det"]) *)
   (* Inline (Grammars.grammar_epsilon, [ "b" ]) *)
@@ -35,7 +36,7 @@ let () =
   match mode with
   | DumpCover ->
       let pg = Recognize.prepare grammar in
-      Display.dump_cover grammar pg.pg_cover
+      Display.dump_cover_short pg.pg_cover
   | Parse display_mode ->
       (* Io.print_gen_tree (); *)
       let pg = Recognize.prepare grammar in
