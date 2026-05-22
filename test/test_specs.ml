@@ -503,6 +503,39 @@ let test_star_rules_present_after_reset () =
     (List.length rules > 1)
 
 (* ============================================================ *)
+(*  Suite — Linear Scan                                         *)
+(* ============================================================ *)
+
+let linear_has pg tokens name =
+  let state = Linear.scan pg tokens in
+  List.exists (fun (item, _) -> item = CompleteItem name) state
+
+let test_linear_abc_complete () =
+  let pg = Recognize.prepare Grammars.grammar_abc in
+  Alcotest.(check bool) "A covers w1 w2 w3" true
+    (linear_has pg [ "w1"; "w2"; "w3" ] "A")
+
+let test_linear_abc_fragment_b () =
+  let pg = Recognize.prepare Grammars.grammar_abc in
+  Alcotest.(check bool) "B covers w1 (fragment)" true
+    (linear_has pg [ "w1" ] "B")
+
+let test_linear_abc_fragment_c () =
+  let pg = Recognize.prepare Grammars.grammar_abc in
+  Alcotest.(check bool) "C covers w2 w3 (fragment)" true
+    (linear_has pg [ "w2"; "w3" ] "C")
+
+let test_linear_gcl_full () =
+  let pg = Recognize.prepare Grammars.grammar_gcl in
+  Alcotest.(check bool) "S covers full GCL sentence" true
+    (linear_has pg [ "det"; "n"; "cl"; "v"; "det"; "n" ] "S")
+
+let test_linear_gcl_np () =
+  let pg = Recognize.prepare Grammars.grammar_gcl in
+  Alcotest.(check bool) "NP covers det n (fragment)" true
+    (linear_has pg [ "det"; "n" ] "NP")
+
+(* ============================================================ *)
 (*  Runner                                                      *)
 (* ============================================================ *)
 
@@ -593,6 +626,14 @@ let () =
           Alcotest.test_case "reset on re-read" `Quick test_symbol_table_reset;
           Alcotest.test_case "star rules present" `Quick
             test_star_rules_present_after_reset;
+        ] );
+      ( "linear scan",
+        [
+          Alcotest.test_case "abc complete" `Quick test_linear_abc_complete;
+          Alcotest.test_case "abc fragment B" `Quick test_linear_abc_fragment_b;
+          Alcotest.test_case "abc fragment C" `Quick test_linear_abc_fragment_c;
+          Alcotest.test_case "gcl full sentence" `Quick test_linear_gcl_full;
+          Alcotest.test_case "gcl NP fragment" `Quick test_linear_gcl_np;
         ] );
       ( "tree reconstruction",
         [

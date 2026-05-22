@@ -22,4 +22,5 @@
   grammar_reader_utils
   grammar_expander
   symbol_table
-  grammar_converter))
+  grammar_converter
+  linear))

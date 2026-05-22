@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Linear Scan Visualiser</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: monospace; background: #1e1e1e; color: #d4d4d4; padding: 20px; }
+h1 { color: #9cdcfe; margin-bottom: 6px; font-size: 18px; }
+h2 { color: #4ec9b0; font-size: 13px; margin-bottom: 4px; }
+.subtitle { color: #888; font-size: 12px; margin-bottom: 20px; }
+
+.layout { display: flex; gap: 20px; }
+.left-panel { width: 280px; flex-shrink: 0; }
+.right-panel { flex: 1; }
+
+/* Token strip */
+.token-strip { display: flex; gap: 4px; margin-bottom: 16px; align-items: center; }
+.token { border: 2px solid #555; border-radius: 4px; padding: 6px 12px; font-size: 13px; transition: all 0.3s; cursor: default; }
+.token.active  { border-color: #dcdcaa; background: #2d2d20; color: #dcdcaa; }
+.token.done    { border-color: #4ec9b0; background: #1e2d2b; color: #4ec9b0; }
+.token.pending { border-color: #555; color: #666; }
+
+/* State box */
+.state-box { border: 1px solid #444; border-radius: 4px; padding: 10px; margin-bottom: 12px; min-height: 60px; }
+.state-box-label { font-size: 10px; color: #888; margin-bottom: 6px; }
+.item { display: inline-block; border: 1px solid #555; border-radius: 3px; padding: 3px 8px; margin: 2px; font-size: 12px; transition: all 0.4s; }
+.item.old    { border-color: #569cd6; color: #569cd6; background: #1a1e2b; }
+.item.new    { border-color: #dcdcaa; color: #dcdcaa; background: #2d2d1e; }
+.item.fired  { border-color: #4ec9b0; color: #4ec9b0; background: #1e2d2b; }
+.item.virtual{ border-color: #c586c0; color: #c586c0; background: #2a1e2a; }
+
+/* Log */
+.log { border: 1px solid #333; border-radius: 4px; padding: 10px; height: 320px; overflow-y: auto; font-size: 12px; line-height: 1.8; }
+.log-entry { padding: 2px 0; border-bottom: 1px solid #2a2a2a; }
+.log-entry.seed    { color: #dcdcaa; }
+.log-entry.combine { color: #4ec9b0; }
+.log-entry.fill    { color: #c586c0; }
+.log-entry.step    { color: #9cdcfe; font-weight: bold; border-bottom: 1px solid #444; padding: 4px 0; }
+.log-entry.note    { color: #888; font-style: italic; }
+
+/* Grammar box */
+.grammar { border: 1px solid #333; border-radius: 4px; padding: 10px; font-size: 12px; line-height: 1.9; margin-bottom: 12px; }
+.grammar-prod { color: #ce9178; }
+.grammar-head { color: #4ec9b0; }
+
+/* Controls */
+.controls { display: flex; gap: 8px; margin-bottom: 16px; }
+button { background: #2d2d2d; border: 1px solid #555; border-radius: 3px; color: #d4d4d4; padding: 6px 14px; cursor: pointer; font-family: monospace; font-size: 12px; }
+button:hover { border-color: #9cdcfe; color: #9cdcfe; }
+button:disabled { opacity: 0.3; cursor: default; }
+.step-indicator { color: #888; font-size: 12px; padding: 6px 0; align-self: center; }
+
+/* Combo table */
+.combo-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+.combo-table th { background: #2d2d2d; color: #9cdcfe; padding: 4px 8px; text-align: left; border: 1px solid #444; }
+.combo-table td { padding: 4px 8px; border: 1px solid #333; }
+.combo-table tr.hit td { background: #1e2d2b; color: #4ec9b0; }
+.combo-table tr.miss td { color: #555; }
+
+.section-title { color: #888; font-size: 11px; margin-bottom: 4px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<h1>Linear Scan Visualiser</h1>
+<p class="subtitle">Grammar ABC &nbsp;·&nbsp; A → B C &nbsp;·&nbsp; B → w1 &nbsp;·&nbsp; C → w2 w3 &nbsp;·&nbsp; Input: [w1, w2, w3]</p>
+
+<div class="controls">
+  <button id="btn-prev" onclick="prev()">← Prev</button>
+  <button id="btn-next" onclick="next()">Next →</button>
+  <span class="step-indicator" id="step-ind">Step 0 / 0</span>
+  <button onclick="jumpTo(0)">Reset</button>
+</div>
+
+<div class="layout">
+  <div class="left-panel">
+    <h2>Grammar</h2>
+    <div class="grammar">
+      <div class="grammar-prod">1: A → <span class="grammar-head">B</span> C &nbsp;<span style="color:#555">[head B]</span></div>
+      <div class="grammar-prod">2: B → <span class="grammar-head">w1</span> &nbsp;<span style="color:#555">[head w1]</span></div>
+      <div class="grammar-prod">3: C → <span class="grammar-head">w2</span> w3 &nbsp;<span style="color:#555">[head w2]</span></div>
+    </div>
+
+    <h2>H-Cover (relevant)</h2>
+    <div class="grammar">
+      <div style="color:#888; font-size:11px; margin-bottom:4px;">Projections</div>
+      <div style="color:#ce9178">I(2,0,1) ← HTerm "w1"</div>
+      <div style="color:#ce9178">I_B ← HItem I(2,0,1)</div>
+      <div style="color:#ce9178">I(1,0,1) ← HItem I_B</div>
+      <div style="color:#ce9178">I(3,0,1) ← HTerm "w2"</div>
+      <div style="color:#ce9178">I_C ← ??? (needs w3)</div>
+      <div style="color:#888; font-size:11px; margin-top:6px; margin-bottom:4px;">Right expansions</div>
+      <div style="color:#4ec9b0">I_C ← I(3,0,1) + "w3"</div>
+      <div style="color:#4ec9b0">I_A ← I(1,0,1) + I_C</div>
+      <div style="color:#888; font-size:11px; margin-top:6px; margin-bottom:4px;">Left expansions</div>
+      <div style="color:#c586c0">(none needed here)</div>
+    </div>
+
+    <h2>Seen Tokens</h2>
+    <div class="state-box" id="seen-tokens-box" style="min-height:36px">
+      <div class="state-box-label">terminals seen so far</div>
+      <div id="seen-tokens"></div>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <h2>Tokens</h2>
+    <div class="token-strip" id="token-strip"></div>
+
+    <div style="display:flex; gap:12px; margin-bottom:12px;">
+      <div style="flex:1">
+        <div class="section-title">ACC (old items — from previous steps)</div>
+        <div class="state-box" id="box-acc">
+          <div class="state-box-label">accumulated state</div>
+          <div id="acc-items"></div>
+        </div>
+      </div>
+      <div style="flex:1">
+        <div class="section-title">NEW (seeded this step + terminal hits)</div>
+        <div class="state-box" id="box-new">
+          <div class="state-box-label">new items this step</div>
+          <div id="new-items"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">FIRED combinations (acc × new + terminal hits + as_right against acc)</div>
+    <div class="state-box" id="box-fired" style="min-height:50px">
+      <div id="fired-items"></div>
+    </div>
+
+    <div class="section-title">Log</div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+const STEPS = [
+  {
+    label: "Start",
+    token: null,
+    tokenStates: ["pending","pending","pending"],
+    acc: [],
+    new_items: [],
+    fired: [],
+    seenTokens: [],
+    log: [
+      { cls: "step", text: "── Initial state ──" },
+      { cls: "note", text: "State is empty. Waiting for first token." },
+    ]
+  },
+  {
+    label: "seed(w1) + left_boundary_fill",
+    token: 0,
+    tokenStates: ["active","pending","pending"],
+    acc: [],
+    new_items: [
+      { id: "I(2,0,1)", cls: "new", note: "B → [*w1*] seeded from w1" },
+      { id: "I_B",      cls: "new", note: "B complete — projected from I(2,0,1)" },
+      { id: "I(1,0,1)", cls: "new", note: "A → [*B* C] — projected from I_B" },
+    ],
+    fired: [],
+    seenTokens: ["w1"],
+    log: [
+      { cls: "step",    text: "── Step 1: token = w1 ──" },
+      { cls: "seed",    text: "seed(w1): I(2,0,1) from projection HTerm w1" },
+      { cls: "seed",    text: "projection: I(2,0,1) → I_B (B complete)" },
+      { cls: "seed",    text: "projection: I_B → I(1,0,1) (partial A, head B covered)" },
+      { cls: "fill",    text: "left_boundary_fill: no left expansions fire (head is leftmost)" },
+      { cls: "note",    text: "State_0 = { I(2,0,1), I_B, I(1,0,1) }" },
+    ]
+  },
+  {
+    label: "combine(State_0, seed(w2), 'w2')",
+    token: 1,
+    tokenStates: ["done","active","pending"],
+    acc: [
+      { id: "I(2,0,1)", cls: "old" },
+      { id: "I_B",      cls: "old" },
+      { id: "I(1,0,1)", cls: "old", note: "needs I_C on right" },
+    ],
+    new_items: [
+      { id: "I(3,0,1)", cls: "new", note: "C → [*w2* w3] seeded from w2" },
+    ],
+    fired: [
+      { id: "(none)", cls: "note", note: "I(1,0,1) needs I_C, not I(3,0,1) — no match yet" },
+    ],
+    seenTokens: ["w1","w2"],
+    log: [
+      { cls: "step",    text: "── Step 2: token = w2 ──" },
+      { cls: "seed",    text: "seed(w2): I(3,0,1) from projection HTerm w2" },
+      { cls: "note",    text: "seed(w2) closes: no further projections from I(3,0,1)" },
+      { cls: "combine", text: "terminal hits for 'w2' against acc: none fire" },
+      { cls: "combine", text: "acc × new: I(1,0,1) + I(3,0,1) — no match (need I_C, not partial)" },
+      { cls: "note",    text: "I(3,0,1) is KEPT in state (cumulative — nothing discarded)" },
+      { cls: "note",    text: "State_1 = State_0 ∪ { I(3,0,1) }" },
+    ]
+  },
+  {
+    label: "combine(State_1, right_boundary_fill(seed(w3)), 'w3')",
+    token: 2,
+    tokenStates: ["done","done","active"],
+    acc: [
+      { id: "I(2,0,1)", cls: "old" },
+      { id: "I_B",      cls: "old" },
+      { id: "I(1,0,1)", cls: "old", note: "waiting for I_C" },
+      { id: "I(3,0,1)", cls: "old", note: "waiting for w3" },
+    ],
+    new_items: [
+      { id: "(seed empty)", cls: "note", note: "w3 is not a head" },
+      { id: "(right_boundary_fill empty)", cls: "note", note: "nothing to fill" },
+    ],
+    fired: [
+      { id: "I_C",  cls: "fired", note: "TERMINAL HIT: I(3,0,1) + HTerm 'w3' → I_C  [from acc]" },
+      { id: "I_A",  cls: "fired", note: "as_right: I_C fires right_expansion(I_A, I(1,0,1), HItem I_C) — I(1,0,1) ∈ acc ✓" },
+    ],
+    seenTokens: ["w1","w2","w3"],
+    log: [
+      { cls: "step",    text: "── Step 3: token = w3 (last) ──" },
+      { cls: "seed",    text: "seed(w3): empty — w3 is not a head of any production" },
+      { cls: "fill",    text: "right_boundary_fill(empty): nothing to fill" },
+      { cls: "combine", text: "TERMINAL HIT: I(3,0,1) in acc + HTerm 'w3' → I_C ✓" },
+      { cls: "combine", text: "close: I_C new → as_right checks acc for left siblings" },
+      { cls: "combine", text: "  right_expansion(I_A, I(1,0,1), HItem I_C)" },
+      { cls: "combine", text: "  I(1,0,1) ∈ acc ✓  →  I_A FIRES ✓" },
+      { cls: "note",    text: "Final state contains I_A = CompleteItem 'A' ✓" },
+      { cls: "note",    text: "KEY: as_right checks ORIGINAL acc, not growing seen" },
+      { cls: "note",    text: "     → prevents spurious combinations within same step" },
+    ]
+  },
+];
+
+let currentStep = 0;
+
+function render(s) {
+  // token strip
+  const tokens = ["w1","w2","w3"];
+  const strip = document.getElementById("token-strip");
+  strip.innerHTML = tokens.map((t,i) => {
+    const cls = s.tokenStates[i];
+    return `<div class="token ${cls}">${t}</div>`;
+  }).join('<span style="color:#555; padding:0 4px">→</span>');
+
+  // acc
+  document.getElementById("acc-items").innerHTML =
+    (s.acc.length === 0)
+      ? '<span style="color:#555; font-size:12px">empty</span>'
+      : s.acc.map(it => `<span class="item ${it.cls}" title="${it.note||''}">${it.id}</span>`).join('');
+
+  // new
+  document.getElementById("new-items").innerHTML =
+    (s.new_items.length === 0)
+      ? '<span style="color:#555; font-size:12px">empty</span>'
+      : s.new_items.map(it => `<span class="item ${it.cls}" title="${it.note||''}">${it.id}</span>`).join('');
+
+  // fired
+  document.getElementById("fired-items").innerHTML =
+    (s.fired.length === 0)
+      ? '<span style="color:#555; font-size:12px">—</span>'
+      : s.fired.map(it => `<span class="item ${it.cls}" title="${it.note||''}">${it.id}</span>`).join('');
+
+  // seen tokens
+  document.getElementById("seen-tokens").innerHTML =
+    s.seenTokens.map(t => `<span class="item old">${t}</span>`).join('');
+
+  // log
+  const log = document.getElementById("log");
+  log.innerHTML = s.log.map(e =>
+    `<div class="log-entry ${e.cls}">${e.text}</div>`
+  ).join('');
+  log.scrollTop = log.scrollHeight;
+
+  // controls
+  document.getElementById("btn-prev").disabled = currentStep === 0;
+  document.getElementById("btn-next").disabled = currentStep === STEPS.length - 1;
+  document.getElementById("step-ind").textContent =
+    `Step ${currentStep} / ${STEPS.length - 1}  —  ${s.label}`;
+}
+
+function next() { if (currentStep < STEPS.length-1) { currentStep++; render(STEPS[currentStep]); } }
+function prev() { if (currentStep > 0) { currentStep--; render(STEPS[currentStep]); } }
+function jumpTo(n) { currentStep = n; render(STEPS[currentStep]); }
+
+render(STEPS[0]);
+</script>
+</body>
+</html>

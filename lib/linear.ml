@@ -9,9 +9,8 @@ type state_entry = h_item * forest_node list
 
 type state = state_entry list
 
-(* NOTE: verify merge_into logic — when item already seen, we append all new nodes
-   and re-project them. Check this is correct for all callers. *)
-(* merge nodes for item into seen; return updated seen and the new nodes to project *)
+(* NOTE: merge_into logic needs examination — when item already seen, we append all
+   new nodes and re-project them. Verify this is correct for all callers. *)
 let merge_into seen item nodes =
   match List.assoc_opt item seen with
   | None -> ((item, nodes) :: seen, nodes)
@@ -19,7 +18,6 @@ let merge_into seen item nodes =
       let seen' = List.map (fun (i, ns) -> if i = item then (i, ns @ nodes) else (i, ns)) seen in
       (seen', nodes)
 
-(* look up token in projections, return initial state entries *)
 let seed (cover : h_cover) (token : string) : state =
   let rec close worklist seen =
     match worklist with
@@ -48,7 +46,6 @@ let seed (cover : h_cover) (token : string) : state =
   in
   close initial []
 
-(* inject virtual left siblings for items missing left context, fixpoint *)
 let left_boundary_fill (cover : h_cover) (s : state) : state =
   let rec close worklist seen =
     match worklist with
@@ -69,7 +66,6 @@ let left_boundary_fill (cover : h_cover) (s : state) : state =
   in
   close s []
 
-(* inject virtual right siblings for items missing right context, fixpoint *)
 let right_boundary_fill (cover : h_cover) (s : state) : state =
   let rec close worklist seen =
     match worklist with
@@ -90,8 +86,10 @@ let right_boundary_fill (cover : h_cover) (s : state) : state =
   in
   close s []
 
-(* find all valid combinations between accumulated state and new items *)
-let combine (cover : h_cover) (acc : state) (new_items : state) : state =
+(* Binary combine: fires combinations between acc and new_items for this token only.
+   Does NOT accumulate — caller is responsible for merging state across steps.
+   See linear_scan_notes.md for the full history of what was tried and why. *)
+let combine (cover : h_cover) (acc : state) (new_items : state) (token : string) : state =
   let raw =
     List.concat_map (fun (l_item, l_nodes) ->
       List.concat_map (fun (r_item, r_nodes) ->
@@ -117,6 +115,17 @@ let combine (cover : h_cover) (acc : state) (new_items : state) : state =
       new_items)
     acc
   in
+  let terminal_hits =
+    List.concat_map (fun (l_item, l_nodes) ->
+      List.filter_map (fun (result, left_item, y_h) ->
+        if left_item = l_item && y_h = HTerm token then
+          let nodes = List.map (fun ln -> FNode (result, [ln; FLeaf token])) l_nodes in
+          Some (result, nodes)
+        else None)
+        cover.right_expansions)
+      acc
+  in
+  let raw = raw @ terminal_hits in
   let rec close worklist seen =
     match worklist with
     | [] -> seen
@@ -137,7 +146,6 @@ let combine (cover : h_cover) (acc : state) (new_items : state) : state =
   in
   close raw []
 
-(* main loop: left_boundary_fill first token, combine across tokens, right_boundary_fill last *)
 let scan (pg : prepared_grammar) (tokens : string list) : state =
   let cover = pg.pg_cover in
   match tokens with
@@ -147,7 +155,27 @@ let scan (pg : prepared_grammar) (tokens : string list) : state =
       let state0 = left_boundary_fill cover (seed cover first) in
       let rec loop acc = function
         | [] -> acc
-        | [last] -> combine cover acc (right_boundary_fill cover (seed cover last))
-        | t :: ts -> loop (combine cover acc (seed cover t)) ts
+        | [last] -> combine cover acc (right_boundary_fill cover (seed cover last)) last
+        | t :: ts -> loop (combine cover acc (seed cover t) t) ts
       in
       loop state0 rest
+
+let scan_steps (pg : prepared_grammar) (tokens : string list) : (string * state) list =
+  let cover = pg.pg_cover in
+  match tokens with
+  | [] -> []
+  | [t] ->
+      let s = left_boundary_fill cover (right_boundary_fill cover (seed cover t)) in
+      [(t, s)]
+  | first :: rest ->
+      let state0 = left_boundary_fill cover (seed cover first) in
+      let rec loop acc steps = function
+        | [] -> List.rev steps
+        | [last] ->
+            let s = combine cover acc (right_boundary_fill cover (seed cover last)) last in
+            List.rev ((last, s) :: steps)
+        | t :: ts ->
+            let s = combine cover acc (seed cover t) t in
+            loop s ((t, s) :: steps) ts
+      in
+      loop state0 [(first, state0)] rest

@@ -1,50 +1,40 @@
 open Practice
 
-type grammar_source =
-  | File of string * string list
-  | Inline of Types.grammar * string list
-[@@warning "-37"]
-
-let active_grammar =
-  (* Inline (Grammars.grammar_abc, [ "w1"; "w2" ]) *)
-  (* Inline (Grammars.grammar_astar, [ "a"; "a"; "a" ]) *)
-  (* Inline (Grammars.grammar_gcl,   ["det"; "n"  ; "cl"; "v"  ; "det"]) *)
-  (* Inline (Grammars.grammar_epsilon, [ "b" ]) *)
-  (* Inline (Grammars.grammar_arith,   [ "n"; "+"; "n" ]) *)
-  (* File ("grammars/simple.g4",  ["V" ; "DET"]) *)
-  (* File ("grammars/lisp.g4", ["ATOM" ; "RPAREN" ; "RPAREN"]) *)
-  File ("grammars/cparser.g4", Io.tokens_from_java ())
-
-type run_mode = Parse of Output.display_mode | DumpCover
-[@@warning "-37"]
-
-let mode = Parse Output.Trees
-(* let mode = DumpCover *)
-
-(* ------------------------------------------------------------------ *)
+let print_scan_table steps =
+  let col_width = 20 in
+  let sep () =
+    print_string "+";
+    List.iter (fun _ -> print_string (String.make col_width '-'); print_string "+") steps;
+    print_newline ()
+  in
+  let pad s = let l = String.length s in
+    if l >= col_width then String.sub s 0 col_width
+    else s ^ String.make (col_width - l) ' '
+  in
+  (* header: token names *)
+  sep ();
+  print_string "|";
+  List.iter (fun (tok, _) -> print_string (pad (" " ^ tok)); print_string "|") steps;
+  print_newline ();
+  sep ();
+  (* items per step *)
+  let max_items = List.fold_left (fun m (_, s) -> max m (List.length s)) 0 steps in
+  let cols = List.map (fun (_, s) ->
+    List.map (fun (item, _) -> Display.render_item_short item) s
+  ) steps in
+  for i = 0 to max_items - 1 do
+    print_string "|";
+    List.iter (fun col ->
+      let s = if i < List.length col then List.nth col i else "" in
+      print_string (pad (" " ^ s)); print_string "|") cols;
+    print_newline ()
+  done;
+  sep ()
 
 let () =
-  let grammar, tokens =
-    match active_grammar with
-    | File (path, ts) ->
-        ( path |> Grammar_reader.extract_grammar
-          |> Grammar_converter.convert_grammar,
-          ts )
-    | Inline (g, ts) -> (g, ts)
-  in
+  let grammar = Grammars.grammar_abc in
+  let tokens = [ "w1" ; "w2" ; "w3"] in
+  let pg = Recognize.prepare grammar in
   Printf.printf "Input: [%s]\n\n%!" (String.concat "; " tokens);
-  match mode with
-  | DumpCover ->
-      let pg = Recognize.prepare grammar in
-      Display.dump_cover_short pg.pg_cover
-  | Parse display_mode ->
-      (* Io.print_gen_tree (); *)
-      let pg = Recognize.prepare grammar in
-      let tbl = Recognize.recognize_with pg tokens in
-      Printf.printf "Table items: %d\n%!" (Query.count_table_items tbl);
-      let tbl =
-        Htable.show ~roots:true ~grammar:false ~cover:true ~table:true
-          ~cells:false ~result:false tbl
-      in
-      let roots = Query.infer_parse_roots tbl in
-      Output.print_results ~grammar tbl roots display_mode
+  let steps = Linear.scan_steps pg tokens in
+  print_scan_table steps
