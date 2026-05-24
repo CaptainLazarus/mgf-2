@@ -196,6 +196,16 @@
 
   Grammar preparation is performed once per grammar; the resulting $cal(H)(G)$ is reused across all fragments. This is significant in the patch analysis setting, where thousands of fragments from the same language are processed in sequence.
 
+  = Evaluation
+
+  We evaluate on three grammars of increasing complexity. Grammar preparation runs once per grammar; recognition and reconstruction run per fragment.
+
+  *GCL grammar.* Three productions, 4 terminals. For the fragment $beta = "v det"$ the system returns one root: VP with 2 gaps ($L = chevron.l "cl" chevron.r$, $R = chevron.l "n" chevron.r$) and a single parse tree. S is inferred but removed by the subtree-dominance filter, since S's best tree contains VP as a direct child — retaining both would be redundant. For the complete input "det n cl v det n" the system returns S with 0 gaps and a single tree.
+
+  *Lisp grammar.* An S-expression grammar read from an ANTLR4 file, with alternation and Kleene operators desugared by the grammar pipeline. Single-atom inputs are covered by `s_expression` with 0 gaps. Dotted pairs such as `(ATOM . ATOM)` are likewise covered with 0 gaps.
+
+  *C grammar.* A full C grammar in ANTLR4 format, desugared to several hundred productions. Grammar preparation completes in under one second and is shared across all fragments. For short fragments of 2–10 tokens, recognition produces tens to hundreds of table items. Multiple root candidates appear naturally: a bare sequence of tokens may be a valid expression, a statement argument, a declarator, or several simultaneously. The subtree-dominance filter reduces the displayed roots to non-redundant candidates. Tree reconstruction is lazy and capped at 5 trees per root to avoid cartesian-product blowup in the derivation forest; this suffices to identify the syntactic category and gap description for each root.
+
   = Related Work
 
   *Substring recognition.* Rekers and Koorn #cite(<rekerskoorn1991>) give an O($n^3$) algorithm for deciding whether $beta$ is a substring of some sentence in $L(G)$, and produce parse trees. Their trees are for the complete sentence $alpha beta gamma$ rooted at $S$, not for $beta$ alone rooted at covering nonterminals. The covering set $cal(C)(beta)$ is not computed.
