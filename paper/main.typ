@@ -85,11 +85,11 @@
 
   For the fragment
 
-  $ beta = "v det n" $
+  $ beta = "v det" $
 
-  the derivation $"VP" =>^* "cl" dot beta$ places VP in the covering set, as does $S =>^* "NP cl" dot beta$, giving $cal(C)(beta) = {"VP","S"}$.
+  VP derives $"cl" dot beta dot "n"$, placing it in the covering set. S derives $"NP cl" dot beta dot "n"$ similarly, giving $cal(C)(beta) = {"VP", "S"}$.
 
-  The gap parse tree for VP (left gap $chevron.l "cl" chevron.r$, right gap $epsilon$) is:
+  The gap parse tree for VP (left gap $chevron.l "cl" chevron.r$, right gap $chevron.l "n" chevron.r$) is:
 
   #align(center)[
     #canvas(length: 0.75cm, {
@@ -98,7 +98,7 @@
       draw.content((2, 1.5), [v])
       draw.content((4, 1.5), [NP])
       draw.content((3.2, 0), [det])
-      draw.content((4.8, 0), [n])
+      draw.content((4.8, 0), text(style: "italic")[⟨n⟩])
       draw.line((2, 2.6), (0.3, 1.9))
       draw.line((2, 2.6), (2, 1.9))
       draw.line((2, 2.6), (3.7, 1.9))
@@ -107,7 +107,7 @@
     })
   ]
 
-  The virtual node $chevron.l "cl" chevron.r$ is the missing left sibling — the left gap $L$. Boundary seeding of VP into S adds $chevron.l "NP" chevron.r$, giving $cal(C)(beta) supset.eq {"VP", "S"}$ with $L_S = (chevron.l "NP" chevron.r, chevron.l "cl" chevron.r)$.
+  $chevron.l "cl" chevron.r$ is the missing left sibling and $chevron.l "n" chevron.r$ the missing right terminal, giving $L_"VP" = (chevron.l "cl" chevron.r)$ and $R_"VP" = (chevron.l "n" chevron.r)$. Boundary seeding promotes VP into S, prepending $chevron.l "NP" chevron.r$, so $L_S = (chevron.l "NP" chevron.r, chevron.l "cl" chevron.r)$ and $R_S = (chevron.l "n" chevron.r)$.
 
   = Why Fragment Parsing is Hard
 

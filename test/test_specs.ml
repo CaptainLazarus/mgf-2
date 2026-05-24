@@ -119,12 +119,13 @@ let test_gcl_tree_structure () =
   in
   Alcotest.(check tree_t) "GCL tree structure" expected (List.hd trees)
 
-(* A-star on single "a": two trees — one with trailing epsilon Astar node,
-   one collapsed via epsilon projection *)
+(* A-star on single "a": with suppress-projection, CompleteItem "A" at T[0,1=n]
+   cannot project to PartialItem, so Astar is never assembled in T[0,1].
+   The recognised root is A, not Astar. Exactly 1 tree: Node("A",[Leaf "a"]). *)
 let test_astar_single_tree () =
   let tbl = recognized Grammars.grammar_astar [ "a" ] in
-  let trees = Reconstruct.reconstruct_trees_omit tbl "Astar" in
-  Alcotest.(check int) "2 Astar trees for [a]" 2 (List.length trees)
+  let trees = Reconstruct.reconstruct_trees_omit tbl "A" in
+  Alcotest.(check int) "1 A tree for [a] (Astar suppressed at T[0,n])" 1 (List.length trees)
 
 (* A-star on empty: one tree (just the epsilon node) *)
 let test_astar_empty_tree () =
@@ -145,17 +146,21 @@ let lisp_grammar () =
   let domain = Grammar_reader.extract_grammar "../grammars/lisp.g4" in
   Grammar_converter.convert_grammar domain
 
+(* lisp_ is only reachable from s_expression via a unit projection;
+   suppress-projection blocks that chain at T[0,n], so s_expression is the root. *)
 let test_lisp_atom_accepted () =
   let g = lisp_grammar () in
   let tbl = Recognize.recognize g [ "ATOM" ] in
-  Alcotest.(check bool) "ATOM accepted as lisp_" true (Query.is_accepted tbl)
+  Alcotest.(check bool) "ATOM recognized as s_expression" true
+    (has tbl 0 1 "s_expression")
 
 let test_lisp_dotted_pair_accepted () =
   let g = lisp_grammar () in
   let tbl =
     Recognize.recognize g [ "LPAREN"; "ATOM"; "DOT"; "ATOM"; "RPAREN" ]
   in
-  Alcotest.(check bool) "(a . b) accepted" true (Query.is_accepted tbl)
+  Alcotest.(check bool) "(a . b) recognized as s_expression" true
+    (has tbl 0 5 "s_expression")
 
 let _test_lisp_invalid_no_trees () =
   (* Skipped: behaviour for incomplete inputs is under active development.
@@ -205,20 +210,25 @@ let test_inline_alts () =
     "- A" true
     (Query.is_accepted (recog_str g [ "-"; "A" ]))
 
-(* uppercase TOKEN+ must not fail with LHS-must-be-nonterminal *)
+(* uppercase TOKEN+ must not fail with LHS-must-be-nonterminal.
+   With suppress-projection, start symbol "s" never appears in T[0,n] —
+   TOKEN+ is the actual recognised root. *)
 let test_uppercase_plus () =
   let g = "s : TOKEN+ ;" in
   Alcotest.(check bool)
-    "TOKEN TOKEN" true
-    (Query.is_accepted (recog_str g [ "TOKEN"; "TOKEN" ]))
+    "TOKEN TOKEN recognized as TOKEN+" true
+    (has (recog_str g [ "TOKEN"; "TOKEN" ]) 0 2 "TOKEN+")
 
-(* s : A+ B* — plus needs >=1 (no epsilon rule), star allows 0 *)
+(* s : A+ B* — plus needs >=1 (no epsilon rule), star allows 0.
+   With suppress-projection: when input is A-only, A+ lands in T[0,n] and
+   can't project to "s" (CompleteItem suppressed). A+ IS the recognised root.
+   When B tokens are present, A+ is in an inner cell and projects normally → "s" reaches T[0,n]. *)
 let test_plus_and_star () =
   let g = "s : A+ B* ;" in
-  Alcotest.(check bool) "A accepted" true
-    (Query.is_accepted (recog_str g [ "A" ]));
-  Alcotest.(check bool) "A A A accepted" true
-    (Query.is_accepted (recog_str g [ "A"; "A"; "A" ]));
+  Alcotest.(check bool) "A accepted as A+" true
+    (has (recog_str g [ "A" ]) 0 1 "A+");
+  Alcotest.(check bool) "A A A accepted as A+" true
+    (has (recog_str g [ "A"; "A"; "A" ]) 0 3 "A+");
   Alcotest.(check bool) "A B accepted" true
     (Query.is_accepted (recog_str g [ "A"; "B" ]));
   Alcotest.(check bool) "A A B B accepted" true
@@ -649,3 +659,4 @@ let () =
            is under active development; "invalid" inputs may now produce virtual trees *)
         ] );
     ]
+

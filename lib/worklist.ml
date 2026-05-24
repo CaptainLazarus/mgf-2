@@ -95,7 +95,15 @@ let process_agenda ?(debug = false) (tbl : rec_table)
     if debug then
       Printf.printf "[%d] dequeue %s from T[%d,%d]\n%!" !step
         (show_item a_h) i j;
-    do_project tbl agenda a_h i j;
+    (* In T[0,n], suppress upward projection of CompleteItems. A CompleteItem
+       landing in the final cell is already a root — projecting it further adds
+       wrapper nonterminals (e.g. expressionStatement → statement → blockItem)
+       that are dominated at display time anyway. Only PartialItems still need
+       to project (they produce the CompleteItem roots we actually want).
+       NOTE: breaks unit-rule grammars where the only root is reachable via
+       projection chain (e.g. s_expression → lisp_). See suppress_projection_t0n.md. *)
+    if not (i = 0 && j = n && not (is_partial a_h)) then
+      do_project tbl agenda a_h i j;
     do_eps_project tbl agenda a_h i j;
     do_left_expand tbl agenda a_h i j;
     do_right_expand tbl agenda n a_h i j;

@@ -50,8 +50,9 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
   let pre_reduce_keys = List.map fst tbl.entries.(0).(n).items in
 
   for k = 1 to n do
-    l_reduce_step tbl agenda k;
-    Worklist.process_agenda ~debug tbl agenda
+    if tbl.entries.(0).(n).items = [] then (
+      l_reduce_step tbl agenda k;
+      Worklist.process_agenda ~debug tbl agenda)
   done;
 
   if tbl.entries.(0).(n).items = [] then (

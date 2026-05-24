@@ -73,9 +73,21 @@ type display_mode =
 (* Tree printer                                                        *)
 (* ------------------------------------------------------------------ *)
 
-let print_tree_result ?grammar i n_unique gaps tree =
-  Printf.printf "  ── Tree %d/%d  (%d gap%s) ──\n" i n_unique gaps
-    (if gaps = 1 then "" else "s");
+let print_tree_result ?grammar i n_unique tree =
+  let gaps = count_gaps tree in
+  let left_vs, right_vs = collect_boundary_virtuals ?grammar tree in
+  let gap_parts =
+    List.filter_map
+      (fun (side, vs) ->
+        if vs = [] then None
+        else Some (Printf.sprintf "%s: [%s]" side (String.concat ", " vs)))
+      [ ("L", left_vs); ("R", right_vs) ]
+  in
+  let gap_str =
+    let g = Printf.sprintf "%d gap%s" gaps (if gaps = 1 then "" else "s") in
+    if gap_parts = [] then g else g ^ "  " ^ String.concat "  " gap_parts
+  in
+  Printf.printf "  ── Tree %d/%d  (%s) ──\n" i n_unique gap_str;
   print_tree ?grammar tree;
   print_newline ()
 
@@ -83,33 +95,39 @@ let print_tree_result ?grammar i n_unique gaps tree =
 (* print_results                                                       *)
 (* ------------------------------------------------------------------ *)
 
+let best_tree = function (_, trees, _) ->
+  match trees with t :: _ -> Some t | [] -> None
+
+let dominated candidate all =
+  match best_tree candidate with
+  | None -> false
+  | Some (Node (_, children)) ->
+      List.exists (fun other ->
+        match best_tree other with
+        | Some t -> List.mem t children
+        | None -> false)
+        all
+  | Some _ -> false
+
 let print_results ?grammar tbl roots mode =
-  List.iter
-    (fun (rc : root_candidate) ->
-      let trees = reconstruct_trees_virtual_from ~limit:5 tbl rc.item in
-      if trees = [] then ()
-      else
-        let trees =
-          List.sort (fun a b -> compare (count_virtuals a) (count_virtuals b)) trees
-        in
-        let left_vs, right_vs =
-          match trees with
-          | t :: _ -> collect_boundary_virtuals ?grammar t
-          | [] -> ([], [])
-        in
-        let gap_count = match trees with t :: _ -> count_virtuals t | [] -> 0 in
-        let gap_label =
-          let parts =
-            List.filter_map
-              (fun (side, vs) ->
-                if vs = [] then None
-                else Some (Printf.sprintf "%s: [%s]" side (String.concat ", " vs)))
-              [ ("L", left_vs); ("R", right_vs) ]
+  let with_trees =
+    List.filter_map
+      (fun (rc : root_candidate) ->
+        let trees = reconstruct_trees_virtual_from ~limit:5 tbl rc.item in
+        if trees = [] then None
+        else
+          let trees =
+            List.sort (fun a b -> compare (count_virtuals a) (count_virtuals b)) trees
           in
-          if parts = [] then Printf.sprintf "gaps: %d" gap_count
-          else Printf.sprintf "gaps: %d  %s" gap_count (String.concat "  " parts)
-        in
-        Printf.printf "\n┌─ %s  [%s]\n" rc.root gap_label;
+          let gap_count = match trees with t :: _ -> count_virtuals t | [] -> 0 in
+          Some (rc, trees, gap_count))
+      roots
+  in
+  (* Drop roots whose best tree contains another root's best tree as a direct child *)
+  let with_trees = List.filter (fun c -> not (dominated c with_trees)) with_trees in
+  List.iter
+    (fun (rc, trees, gap_count) ->
+        Printf.printf "\n┌─ %s  [gaps: %d]\n" rc.root gap_count;
         match mode with
         | Tokens ->
             let lines =
@@ -131,7 +149,6 @@ let print_results ?grammar tbl roots mode =
             List.iter (fun s -> Printf.printf "│    %s\n" s) lines;
             Printf.printf "└─\n"
         | Trees ->
-            (* Collapse trees with identical full linearisation *)
             let by_string = Hashtbl.create 8 in
             List.iter
               (fun tree ->
@@ -148,8 +165,7 @@ let print_results ?grammar tbl roots mode =
             let n = List.length unique in
             Printf.printf "│  %d unique tree%s:\n" n (if n = 1 then "" else "s");
             List.iteri
-              (fun i tree ->
-                print_tree_result ?grammar (i + 1) n (count_gaps tree) tree)
+              (fun i tree -> print_tree_result ?grammar (i + 1) n tree)
               unique;
             Printf.printf "└─\n")
-    roots
+    with_trees
