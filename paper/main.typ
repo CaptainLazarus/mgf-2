@@ -109,15 +109,17 @@
 
   $chevron.l "cl" chevron.r$ is the missing left sibling and $chevron.l "n" chevron.r$ the missing right terminal, giving $L_"VP" = (chevron.l "cl" chevron.r)$ and $R_"VP" = (chevron.l "n" chevron.r)$. Boundary seeding promotes VP into S, prepending $chevron.l "NP" chevron.r$, so $L_S = (chevron.l "NP" chevron.r, chevron.l "cl" chevron.r)$ and $R_S = (chevron.l "n" chevron.r)$.
 
-  = Why Fragment Parsing is Hard
+  = Overview of the algorithm
 
-  A left-to-right parser processes tokens in sequence, extending a partial derivation with each new token. When the next token cannot extend any live state, parsing fails. For a fragment this happens immediately: the parser has no way to know that the first token is preceded by context it has not seen. The parser was never designed to handle an input whose left boundary is unknown.
+  Given a CFG $G$ and an input $beta$, each production in $G$ designates one symbol as the _head_ #cite(<sattastock1994>). Using these heads, we precompute an intermediate grammar called the _h-cover_ $cal(H)(G)$. In $cal(H)(G)$, the productions expand outwards from the selected head, and the binary nature of the productions means that every combination step merges exactly two spans. This allows us to use tabular methods to enumerate all valid derivations over every span of $beta$ in cubic time.
 
-  Error-recovery tools address this by repairing the input — inserting or deleting tokens until a complete parse is found. Tree-sitter commits to a single best repair and discards alternative readings. This is appropriate when you want one parse tree for display, but not when the fragment is genuinely ambiguous and all readings are relevant.
+  Every token in $beta$ is a potential starting point for a derivation. Initially, each token initiates a chain of upward projections through the grammar, each step applying a head cover production until no further projections apply. From there, analysis expands bidirectionally, combining with constituents to the left and right in any order until no new derivations can be found.
 
-  Island-driven parsers #cite(<sattastock1994>) start analysis from a known anchor position inside a complete utterance and expand outward. This is closer in spirit to what we need, but still assumes the full string is available and that we know where the anchor sits. Neither applies to our setting: we have a bare fragment, no complete utterance, no known position, and we want all valid classifications.
+  While this suffices for a complete input, a fragment may be missing its left or right context. The first or last token of $beta$ may need a left or right sibling that is absent from the input. To handle this, we seed the boundary cells $T[0,1]$ and $T[n-1,n]$ with all items reachable by inferring the missing left or right constituent from the grammar, a step we call _boundary seeding_. Each inferred constituent is recorded as a virtual node in the resulting parse tree.
 
-  The right tool is an algorithm that can start from any position in the fragment and expand in both directions simultaneously, without assuming a start symbol or a complete input. The h-cover framework #cite(<sattastock1994>) provides exactly this structure. Each production designates one symbol as the _head_; analysis starts from the head and proceeds outward. We adapt this framework by dropping the complete-input assumption and treating partial items — intermediate artifacts in the original algorithm — as first-class output representing the missing context.
+  If $T[0,n]$ is empty after the main agenda, for each prefix span $T[0,k]$, the agenda processes items there with a virtual left sibling, producing new items that can reach $T[0,n]$. If $T[0,n]$ is still empty after this, then we do the same from suffix spans $T[k,n]$. The former is called L-Reduce, and the latter R-Reduce. A final agenda pass then runs on any items newly arrived in $T[0,n]$.
+
+  The items in $T[0,n]$ at the end span the full fragment. Each complete item there identifies a covering nonterminal, and the parse tree reconstructed from it carries the virtual nodes as leaves, directly giving $L_A$ and $R_A$.
 
   = Algorithm
 
