@@ -33,6 +33,14 @@ let count_gaps tree =
   in
   go tree
 
+let count_virtuals tree =
+  let rec go = function
+    | Virtual _ -> 1
+    | Leaf _ -> 0
+    | Node (_, children) -> List.fold_left (fun acc c -> acc + go c) 0 children
+  in
+  go tree
+
 let collect_boundary_virtuals ?grammar tree =
   let rec go = function
     | Virtual x -> [ `V (label_virtual ?grammar x) ]
@@ -81,24 +89,25 @@ let print_results ?grammar tbl roots mode =
       let trees = reconstruct_trees_virtual_from ~limit:5 tbl rc.item in
       if trees = [] then ()
       else
+        let trees =
+          List.sort (fun a b -> compare (count_virtuals a) (count_virtuals b)) trees
+        in
         let left_vs, right_vs =
           match trees with
-          | t :: _ ->
-              let l, r = collect_boundary_virtuals ?grammar t in
-              (List.sort_uniq String.compare l, List.sort_uniq String.compare r)
+          | t :: _ -> collect_boundary_virtuals ?grammar t
           | [] -> ([], [])
         in
+        let gap_count = match trees with t :: _ -> count_virtuals t | [] -> 0 in
         let gap_label =
-          if left_vs = [] && right_vs = [] then "complete"
-          else
-            let parts =
-              List.filter_map
-                (fun (side, vs) ->
-                  if vs = [] then None
-                  else Some (Printf.sprintf "%s: [%s]" side (String.concat ", " vs)))
-                [ ("L", left_vs); ("R", right_vs) ]
-            in
-            "partial — " ^ String.concat "  " parts
+          let parts =
+            List.filter_map
+              (fun (side, vs) ->
+                if vs = [] then None
+                else Some (Printf.sprintf "%s: [%s]" side (String.concat ", " vs)))
+              [ ("L", left_vs); ("R", right_vs) ]
+          in
+          if parts = [] then Printf.sprintf "gaps: %d" gap_count
+          else Printf.sprintf "gaps: %d  %s" gap_count (String.concat "  " parts)
         in
         Printf.printf "\n┌─ %s  [%s]\n" rc.root gap_label;
         match mode with

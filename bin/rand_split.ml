@@ -44,11 +44,7 @@ let () =
     else
       List.iter
         (fun (rc : Types.root_candidate) ->
-          let status =
-            if rc.missing_left = [] && rc.missing_right = [] then "complete"
-            else "partial"
-          in
-          Printf.printf "  -> %s (%s)\n" rc.root status)
+          Printf.printf "  -> %s\n" rc.root)
         unique_roots;
     print_newline ()
   done

@@ -146,13 +146,7 @@ let print_root_candidates candidates =
   Printf.printf "+-- Parse Root Inference %s+\n" (String.make 36 '-');
   if candidates = [] then Printf.printf "| No items found in T[0,n]\n"
   else
-    List.iter
-      (fun c ->
-        if c.missing_left = [] && c.missing_right = [] then
-          Printf.printf "| COMPLETE : %s\n" c.root
-        else
-          Printf.printf "| PARTIAL  : %s\n" c.root)
-      candidates;
+    List.iter (fun c -> Printf.printf "| %s\n" c.root) candidates;
   Printf.printf "+%s+\n" (String.make 60 '-')
 
 let pad_center s w =

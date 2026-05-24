@@ -1,3 +1,4 @@
+#import "@preview/cetz:0.3.4": canvas, draw
 #set document(title: "Fragment Parsing", author: "captainlazarus")
 #set page(paper: "us-letter", margin: (x: 2.5cm, y: 3cm), numbering: "1")
 #set text(font: "New Computer Modern", size: 11pt)
@@ -75,6 +76,38 @@
   The _covering set_ is
 
   $ cal(C)(beta) = {A in N | exists alpha, gamma in Sigma^* : A =>^* alpha beta gamma} $
+
+  The algorithm computes, for each $A in cal(C)(beta)$, a set of _gap parse trees_ rooted at $A$ spanning $beta$. A gap parse tree is a parse tree over $beta$ whose leaves are either tokens from $beta$ or _virtual nodes_ $chevron.l X chevron.r$ ($X in N union Sigma$). Virtual nodes mark constituents present in the derivation of $A$ but absent from $beta$. Those appearing before the first token form the left gap $L$; those after the last token form the right gap $R$.
+
+  *Example.* Let $G_"cl"$ be the grammar #cite(<sattastock1994>):
+
+  $ S &-> "NP VP" quad ("head: VP") \ "VP" &-> "cl v NP" quad ("head: v") \ "NP" &-> "det n" quad ("head: det") $
+
+  For the fragment
+
+  $ beta = "v det n" $
+
+  the derivation $"VP" =>^* "cl" dot beta$ places VP in the covering set, as does $S =>^* "NP cl" dot beta$, giving $cal(C)(beta) = {"VP","S"}$.
+
+  The gap parse tree for VP (left gap $chevron.l "cl" chevron.r$, right gap $epsilon$) is:
+
+  #align(center)[
+    #canvas(length: 0.75cm, {
+      draw.content((2, 3), [VP])
+      draw.content((0, 1.5), text(style: "italic")[⟨cl⟩])
+      draw.content((2, 1.5), [v])
+      draw.content((4, 1.5), [NP])
+      draw.content((3.2, 0), [det])
+      draw.content((4.8, 0), [n])
+      draw.line((2, 2.6), (0.3, 1.9))
+      draw.line((2, 2.6), (2, 1.9))
+      draw.line((2, 2.6), (3.7, 1.9))
+      draw.line((4, 1.1), (3.35, 0.4))
+      draw.line((4, 1.1), (4.65, 0.4))
+    })
+  ]
+
+  The virtual node $chevron.l "cl" chevron.r$ is the missing left sibling — the left gap $L$. Boundary seeding of VP into S adds $chevron.l "NP" chevron.r$, giving $cal(C)(beta) supset.eq {"VP", "S"}$ with $L_S = (chevron.l "NP" chevron.r, chevron.l "cl" chevron.r)$.
 
   = Why Fragment Parsing is Hard
 

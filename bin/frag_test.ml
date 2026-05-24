@@ -30,8 +30,6 @@ type frag_stats = {
   tokens   : string list;
   roots    : Types.root_candidate list;
   tbl      : Types.rec_table;
-  complete : int;
-  partial  : int;
   items    : int;
 } [@@warning "-69"]
 
@@ -41,26 +39,21 @@ let compute_stats grammar pg tok_lex_arr (i, j) =
   let code   = String.concat " " (List.map snd slice) in
   let tbl    = Recognize.recognize_with pg tokens in
   let roots  = Query.infer_parse_roots tbl in
-  let is_complete (r : Types.root_candidate) =
-    r.missing_left = [] && r.missing_right = []
-  in
-  let complete = List.length (List.filter is_complete roots) in
-  let partial  = List.length roots - complete in
-  let items    = Query.count_table_items tbl in
+  let items = Query.count_table_items tbl in
   ignore grammar;
-  { code; tokens; roots; tbl; complete; partial; items }
+  { code; tokens; roots; tbl; items }
 
 let print_stats_table results =
-  Printf.printf "\n%-45s  %4s  %8s  %7s  %5s\n" "Fragment" "Toks" "Complete" "Partial" "Items";
-  Printf.printf "%s\n" (String.make 78 '-');
+  Printf.printf "\n%-45s  %4s  %6s  %5s\n" "Fragment" "Toks" "Roots" "Items";
+  Printf.printf "%s\n" (String.make 65 '-');
   List.iter (fun r ->
     let display =
       if String.length r.code > 44
       then String.sub r.code 0 41 ^ "..."
       else r.code
     in
-    Printf.printf "%-45s  %4d  %8d  %7d  %5d\n"
-      display (List.length r.tokens) r.complete r.partial r.items)
+    Printf.printf "%-45s  %4d  %6d  %5d\n"
+      display (List.length r.tokens) (List.length r.roots) r.items)
     results
 
 let print_detail r =

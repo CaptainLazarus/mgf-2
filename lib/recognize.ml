@@ -47,6 +47,8 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
 
   Worklist.process_agenda ~debug tbl agenda;
 
+  let pre_reduce_keys = List.map fst tbl.entries.(0).(n).items in
+
   for k = 1 to n do
     l_reduce_step tbl agenda k;
     Worklist.process_agenda ~debug tbl agenda
@@ -63,11 +65,16 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
       0 n tbl.entries.(0).(n).items;
     Worklist.process_agenda ~debug tbl agenda);
 
-  frontier_bfs tbl agenda
-    find_right_expansions_by_right
-    (fun b (x, a) -> (x, FromInductiveFill (a, b)))
-    0 n tbl.entries.(0).(n).items;
-  Worklist.process_agenda ~debug tbl agenda;
+  let new_items =
+    List.filter (fun (item, _) -> not (List.mem item pre_reduce_keys))
+      tbl.entries.(0).(n).items
+  in
+  if new_items <> [] then (
+    frontier_bfs tbl agenda
+      find_right_expansions_by_right
+      (fun b (x, a) -> (x, FromInductiveFill (a, b)))
+      0 n new_items;
+    Worklist.process_agenda ~debug tbl agenda);
 
   tbl
 
