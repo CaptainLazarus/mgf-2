@@ -138,3 +138,9 @@ Things to do
 2. Write intro on tool (Problem + Solution) --> Problem itself --> Story of why theory came to be --> Theory --> Implementation
 3. Write what implementation is doing -->
 4. Randomly generate code (stand alone object) feed into a normal parser of the lang and gets accepted --> Should validate --> In principle...don't throw away input tokens and get something that can be parsed --> Take code that can be parsed, feed it into actual parser, then get it parsed by an actual parser --> Only way to evaluate the idea for what this should be --> Needs to be done.
+
+============================
+
+1. Check out the other authors papers.
+2. Expand the nonterminals to terminals --> least useless
+3. Likely grammar preprocessing --> NT size vs expansion size (yay!)

@@ -11,8 +11,8 @@ let active_grammar =
   (* Inline (Grammars.grammar_epsilon, [ "b" ]) *)
   (* Inline (Grammars.grammar_arith,   [ "n"; "+"; "n" ]) *)
   (* File ("grammars/simple.g4",  ["V" ; "DET"]) *)
-  File ("grammars/lisp.g4", ["RPAREN" ; "RPAREN"])
-  (* File ("grammars/cparser.g4", Io.tokens_from_java ()) *)
+  (* File ("grammars/lisp.g4", ["RPAREN" ; "RPAREN"]) *)
+  File ("grammars/cparser.g4", Io.tokens_from_java ())
 
 type run_mode = Parse of Output.display_mode | DumpCover
 [@@warning "-37"]
