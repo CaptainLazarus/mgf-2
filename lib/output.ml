@@ -13,17 +13,17 @@ let pretty_token = function
   | "ATOM" -> "ATOM"
   | s -> s
 
-let rec collect_tokens ?grammar ~virtuals tree =
+let rec collect_tokens ?grammar ?min_yield ~virtuals tree =
   match tree with
   | Leaf s -> [ pretty_token s ]
   | Virtual _ when not virtuals -> []
-  | Virtual x -> [ label_virtual ?grammar x ]
+  | Virtual x -> [ label_virtual ?grammar ?min_yield x ]
   | Node (_, []) -> []
   | Node (_, children) ->
-      List.concat_map (collect_tokens ?grammar ~virtuals) children
+      List.concat_map (collect_tokens ?grammar ?min_yield ~virtuals) children
 
-let linearize ?grammar ~virtuals tree =
-  String.concat " " (collect_tokens ?grammar ~virtuals tree)
+let linearize ?grammar ?min_yield ~virtuals tree =
+  String.concat " " (collect_tokens ?grammar ?min_yield ~virtuals tree)
 
 let count_gaps tree =
   let rec go = function
@@ -41,9 +41,9 @@ let count_virtuals tree =
   in
   go tree
 
-let collect_boundary_virtuals ?grammar tree =
+let collect_boundary_virtuals ?grammar ?min_yield tree =
   let rec go = function
-    | Virtual x -> [ `V (label_virtual ?grammar x) ]
+    | Virtual x -> [ `V (label_virtual ?grammar ?min_yield x) ]
     | Leaf _ -> [ `L ]
     | Node (_, children) -> List.concat_map go children
   in
@@ -73,9 +73,9 @@ type display_mode =
 (* Tree printer                                                        *)
 (* ------------------------------------------------------------------ *)
 
-let print_tree_result ?grammar i n_unique tree =
+let print_tree_result ?grammar ?min_yield i n_unique tree =
   let gaps = count_gaps tree in
-  let left_vs, right_vs = collect_boundary_virtuals ?grammar tree in
+  let left_vs, right_vs = collect_boundary_virtuals ?grammar ?min_yield tree in
   let gap_parts =
     List.filter_map
       (fun (side, vs) ->
@@ -88,7 +88,7 @@ let print_tree_result ?grammar i n_unique tree =
     if gap_parts = [] then g else g ^ "  " ^ String.concat "  " gap_parts
   in
   Printf.printf "  ── Tree %d/%d  (%s) ──\n" i n_unique gap_str;
-  print_tree ?grammar tree;
+  print_tree ?grammar ?min_yield tree;
   print_newline ()
 
 (* ------------------------------------------------------------------ *)
@@ -109,7 +109,7 @@ let dominated candidate all =
         all
   | Some _ -> false
 
-let print_results ?grammar tbl roots mode =
+let print_results ?grammar ?min_yield tbl roots mode =
   let with_trees =
     List.filter_map
       (fun (rc : root_candidate) ->
@@ -132,7 +132,7 @@ let print_results ?grammar tbl roots mode =
         | Tokens ->
             let lines =
               List.sort_uniq String.compare
-                (List.map (linearize ?grammar ~virtuals:false) trees)
+                (List.map (linearize ?grammar ?min_yield ~virtuals:false) trees)
             in
             Printf.printf "│  %d unique token string%s:\n" (List.length lines)
               (if List.length lines = 1 then "" else "s");
@@ -141,7 +141,7 @@ let print_results ?grammar tbl roots mode =
         | Strings ->
             let lines =
               List.sort_uniq String.compare
-                (List.map (linearize ?grammar ~virtuals:true) trees)
+                (List.map (linearize ?grammar ?min_yield ~virtuals:true) trees)
             in
             Printf.printf "│  %d unique string%s (incl. gaps):\n"
               (List.length lines)
@@ -152,7 +152,7 @@ let print_results ?grammar tbl roots mode =
             let by_string = Hashtbl.create 8 in
             List.iter
               (fun tree ->
-                let key = linearize ?grammar ~virtuals:true tree in
+                let key = linearize ?grammar ?min_yield ~virtuals:true tree in
                 if not (Hashtbl.mem by_string key) then
                   Hashtbl.replace by_string key tree)
               trees;
@@ -165,7 +165,7 @@ let print_results ?grammar tbl roots mode =
             let n = List.length unique in
             Printf.printf "│  %d unique tree%s:\n" n (if n = 1 then "" else "s");
             List.iteri
-              (fun i tree -> print_tree_result ?grammar (i + 1) n tree)
+              (fun i tree -> print_tree_result ?grammar ?min_yield (i + 1) n tree)
               unique;
             Printf.printf "└─\n")
     with_trees

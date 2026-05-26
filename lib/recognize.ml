@@ -83,7 +83,7 @@ let recognize (g : grammar) (input : string list) : rec_table =
   recognize_tbl (create_table g input)
 
 let prepare (g : grammar) : prepared_grammar =
-  { pg_grammar = g; pg_cover = compute_h_cover g }
+  { pg_grammar = g; pg_cover = compute_h_cover g; pg_min_yield = compute_min_yield g }
 
 let recognize_with ?(debug = false) (pg : prepared_grammar) (input : string list) : rec_table =
   let n = List.length input in

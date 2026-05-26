@@ -55,7 +55,11 @@ type rec_table = {
 }
 
 (* Pre-compiled grammar *)
-type prepared_grammar = { pg_grammar : grammar; pg_cover : h_cover }
+type prepared_grammar = {
+  pg_grammar : grammar;
+  pg_cover : h_cover;
+  pg_min_yield : (string, string list) Hashtbl.t;
+}
 
 (* Parse trees *)
 type tree =

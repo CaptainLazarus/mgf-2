@@ -6,7 +6,7 @@ open Recognize
 open Query
 open Reconstruct
 
-let print_trees ?grammar ?(mode = "omit") tbl nt =
+let print_trees ?grammar ?min_yield ?(mode = "omit") tbl nt =
   let trees =
     if mode = "virtual" then reconstruct_trees_virtual tbl nt
     else reconstruct_trees_omit tbl nt
@@ -17,13 +17,13 @@ let print_trees ?grammar ?(mode = "omit") tbl nt =
   if n = 0 then Printf.printf "| No trees (input not accepted as %s)\n" nt
   else if n = 1 then (
     Printf.printf "| 1 parse tree:\n|\n";
-    print_tree ?grammar (List.hd trees))
+    print_tree ?grammar ?min_yield (List.hd trees))
   else (
     Printf.printf "| AMBIGUOUS: %d parse trees:\n" n;
     List.iteri
       (fun i tree ->
         Printf.printf "|\n| Tree %d:\n" (i + 1);
-        print_tree ?grammar tree)
+        print_tree ?grammar ?min_yield tree)
       trees);
   Printf.printf "+%s+\n" (String.make 60 '-')
 

@@ -46,4 +46,4 @@ let () =
           ~cells:false ~result:false tbl
       in
       let roots = Query.infer_parse_roots tbl in
-      Output.print_results ~grammar tbl roots display_mode
+      Output.print_results ~grammar ~min_yield:pg.pg_min_yield tbl roots display_mode

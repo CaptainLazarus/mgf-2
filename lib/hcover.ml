@@ -50,6 +50,36 @@ let compute_nullable (g : grammar) : string list =
   done;
   Hashtbl.fold (fun k () acc -> k :: acc) nullable []
 
+(* For each nonterminal, compute the shortest terminal string it can derive.
+   Fixed-point: keep updating until no production yields a shorter string. *)
+let compute_min_yield (g : grammar) : (string, string list) Hashtbl.t =
+  let tbl = Hashtbl.create 64 in
+  let changed = ref true in
+  while !changed do
+    changed := false;
+    List.iter
+      (fun prod ->
+        let rhs_yields =
+          List.map
+            (function
+              | Terminal t -> Some [ t ]
+              | Nonterminal nt -> Hashtbl.find_opt tbl nt)
+            prod.rhs
+        in
+        if List.for_all Option.is_some rhs_yields then
+          let candidate = List.concat_map Option.get rhs_yields in
+          match Hashtbl.find_opt tbl prod.lhs with
+          | None ->
+              Hashtbl.replace tbl prod.lhs candidate;
+              changed := true
+          | Some current when List.length candidate < List.length current ->
+              Hashtbl.replace tbl prod.lhs candidate;
+              changed := true
+          | Some _ -> ())
+      g.productions
+  done;
+  tbl
+
 (* Compute the h-cover *)
 let compute_h_cover (g : grammar) : h_cover =
   let projections = ref [] in
