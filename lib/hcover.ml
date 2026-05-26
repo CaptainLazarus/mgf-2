@@ -78,6 +78,43 @@ let compute_min_yield (g : grammar) : (string, string list) Hashtbl.t =
           | Some _ -> ())
       g.productions
   done;
+  (* For nullable NTs (yield = []), replace with shortest one-step non-epsilon expansion.
+     Uses already-computed yields for RHS symbols, so A* on the RHS contributes [],
+     giving exactly one occurrence of A for A* -> A A*. *)
+  let updates =
+    Hashtbl.fold
+      (fun nt yield acc ->
+        if yield <> [] then acc
+        else
+          let candidates =
+            List.filter_map
+              (fun prod ->
+                if prod.lhs <> nt || prod.rhs = [] then None
+                else
+                  let rhs_yields =
+                    List.map
+                      (function
+                        | Terminal t -> Some [ t ]
+                        | Nonterminal x -> Hashtbl.find_opt tbl x)
+                      prod.rhs
+                  in
+                  if List.for_all Option.is_some rhs_yields then
+                    Some (List.concat_map Option.get rhs_yields)
+                  else None)
+              g.productions
+          in
+          match candidates with
+          | [] -> acc
+          | _ ->
+              let best =
+                List.fold_left
+                  (fun b c -> if List.length c < List.length b then c else b)
+                  (List.hd candidates) (List.tl candidates)
+              in
+              if best = [] then acc else (nt, best) :: acc)
+      tbl []
+  in
+  List.iter (fun (nt, y) -> Hashtbl.replace tbl nt y) updates;
   tbl
 
 (* Compute the h-cover *)

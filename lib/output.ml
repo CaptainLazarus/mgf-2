@@ -54,7 +54,7 @@ let collect_boundary_virtuals ?grammar ?min_yield tree =
   in
   let rec take_trailing acc = function
     | `V s :: rest -> take_trailing (s :: acc) rest
-    | rest -> (List.rev acc, rest)
+    | rest -> (acc, rest)
   in
   let left_vs, rest = take_leading [] items in
   let right_vs, _ = take_trailing [] (List.rev rest) in
