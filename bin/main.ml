@@ -13,11 +13,12 @@ let active_grammar =
   (* File ("grammars/simple.g4",  ["V" ; "DET"]) *)
   (* File ("grammars/lisp.g4", ["RPAREN" ; "RPAREN"]) *)
   File ("grammars/cparser.g4", Io.tokens_from_java ())
+  (* Inline (Grammars.grammar_gcl, [ "cl"; "v" ]) *)
 
 type run_mode = Parse of Output.display_mode | DumpCover
 [@@warning "-37"]
 
-let mode = Parse Output.Trees
+let mode = Parse Output.Strings
 (* let mode = DumpCover *)
 
 (* ------------------------------------------------------------------ *)

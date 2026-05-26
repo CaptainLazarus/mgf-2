@@ -1,1 +1,1 @@
-if (x)
+if (rx_ring->vsi->type == ICE_VSI_PF &&
