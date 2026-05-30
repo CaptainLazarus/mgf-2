@@ -127,7 +127,7 @@
   #block(fill: luma(248), stroke: 0.5pt + luma(200), inset: (x: 8pt, y: 6pt), radius: 3pt, width: 100%)[
     #let on(s) = box(stroke: 0.5pt, fill: luma(212), inset: (x: 5pt, y: 3pt))[#text(size: 8pt)[#s]]
     #let off = box(stroke: (paint: luma(160), dash: "dashed"), inset: (x: 5pt, y: 3pt))[#h(1.4em)]
-    #align(center)[#text(size: 8.5pt)[$r$ : VP $arrow.r$ cl *v* NP #h(1em) (head: v, $tau_r = 2$, $pi_r = 3$)]]
+    #align(center)[#text(size: 8.5pt)[production $r$ : VP $arrow.r$ cl *v* NP #h(1em) (head: v, $tau_r = 2$, $pi_r = 3$)]]
     #v(0.4em)
     #grid(
       columns: (3.8em, auto, auto, auto, 1fr),
