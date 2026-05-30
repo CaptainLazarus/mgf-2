@@ -109,6 +109,48 @@
 
   $chevron.l "cl" chevron.r$ is the missing left sibling and $chevron.l "n" chevron.r$ the missing right terminal, giving $L_"VP" = (chevron.l "cl" chevron.r)$ and $R_"VP" = (chevron.l "n" chevron.r)$. Boundary seeding promotes VP into S, prepending $chevron.l "NP" chevron.r$, so $L_S = (chevron.l "NP" chevron.r, chevron.l "cl" chevron.r)$ and $R_S = (chevron.l "n" chevron.r)$.
 
+  = Terminology
+
+  Each production $r : D -> Z_1 dots Z_(pi_r)$ in the grammar designates one symbol as its *head*, at position $tau_r$. Recognition begins at head symbols. When a head symbol is found in the input, it is *projected* upward into the production it anchors. For example, in the production $"VP" -> "cl" bold(v) "NP"$ with head $bold(v)$, seeing the token "v" projects it to a partial item $(r_"VP", 1, 2)$, a position in the VP production indicating that the head has been assembled and "cl" and NP are still to be found by the H-cover rules.
+
+  #v(0.3em)
+  #block(fill: luma(248), stroke: 0.5pt + luma(200), inset: (x: 8pt, y: 6pt), radius: 3pt, width: 100%)[
+    #let on(s) = box(stroke: 0.5pt, fill: luma(212), inset: (x: 5pt, y: 3pt))[#text(size: 8pt)[#s]]
+    #let off = box(stroke: (paint: luma(160), dash: "dashed"), inset: (x: 5pt, y: 3pt))[#h(1.4em)]
+    #align(center)[#text(size: 8.5pt)[VP $arrow.r$ cl *v* NP #h(1em) (head: v)]]
+    #v(0.4em)
+    #grid(
+      columns: (3.8em, auto, auto, auto, 1fr),
+      column-gutter: 4pt,
+      row-gutter: 3pt,
+      align: (right + horizon, center + horizon, center + horizon, center + horizon, left + horizon),
+      [#text(size: 8pt)[*project*]],   off,       on("v"), off,       [#text(size: 8pt)[(r, 1, 2)]],
+      [],                              [],        [#text(size: 10pt)[$arrow.b$]], [], [],
+      [#text(size: 8pt)[*L-expand*]],  on("cl"),  on("v"), off,       [#text(size: 8pt)[(r, 0, 2)]],
+      [],                              [],        [#text(size: 10pt)[$arrow.b$]], [], [],
+      [#text(size: 8pt)[*R-expand*]],  on("cl"),  on("v"), on("NP"),  [#text(size: 8pt)[CompleteItem(VP)]],
+    )
+  ]
+  #v(0.3em)
+
+  *Projection* is the step that creates an initial partial item from a recognized head symbol, without consuming additional input. For a unit production ($pi_r = 1$), the head projects directly to a complete item for the left-hand side.
+
+  *Expansion* is the step that extends a partial item by combining it with an adjacent item in the table. A *left expansion* consumes the next required symbol to the left; a *right expansion* does the same to the right. When the final remaining symbol of a production is consumed by an expansion, the result is a complete item for the left-hand side — complete items are never produced by projection for non-unit productions.
+
+  The *recognition table* $T$ is an $(n+1) times (n+1)$ array for an input of length $n$. Cell $T[i,j]$ holds items representing derivations assembled over the span $w_{i+1} dots w_j$.
+
+  Two kinds of item appear in $T$:
+
+  - A *complete item* $A$ which asserts that nonterminal $A$ derives the span exactly.
+  - A *partial item* $(r, s, t)$ that represents partial progress on production $r : D -> Z_1 dots Z_(pi_r)$ with head at position $tau_r$.
+    - The range $Z_(s+1) dots Z_t$ has been assembled over the span. A partial item is created by projecting from the head symbol $Z_(tau_r)$ and grows only by left and right expansion, so the head is always within the assembled range ($s < tau_r <= t$). When $s = 0$ and $t = pi_r$ the full right-hand side is covered.
+
+  The *h-cover* $cal(H)(G)$ is a set of production rules derived from the grammar. It is essentially an intermediate grammar that preserves the original language of the grammar. It is computed once per grammar and reused across all inputs.
+
+  *Virtual nodes* $chevron.l X chevron.r$ represent constituents that participate in a derivation but are absent from the input fragment. They appear as leaves in the reconstructed parse tree and directly identify missing context.
+
+  *L-Reduce* and *R-Reduce* are passes applied when the full span $T[0,n]$ is empty after the main agenda. L-Reduce processes prefix spans $T[0,k]$ by injecting virtual left siblings for items whose left context is missing from the fragment. R-Reduce does the same for suffix spans $T[k,n]$ when L-Reduce is insufficient.
+
   = Overview of the algorithm
 
   Given a CFG $G$ and an input $beta$, each production in $G$ designates one symbol as the _head_ #cite(<sattastock1994>). Using these heads, we precompute an intermediate grammar called the _h-cover_ $cal(H)(G)$. In $cal(H)(G)$, the productions expand outwards from the selected head, and the binary nature of the productions means that every combination step merges exactly two spans. This allows us to use tabular methods to enumerate all valid derivations over every span of $beta$ in cubic time.
@@ -125,78 +167,60 @@
 
   == Recognition Table
 
-  Let $beta = w_1 w_2 dots w_n$ be the input fragment. The recognition table $T$ is an $(n+1) times (n+1)$ array where $T[i,j]$ holds items representing partial or complete derivations over $w_{i+1} dots w_j$.
-
-  Two item types are used. A *complete item* for nonterminal $A$ asserts that $A$ derives $w_{i+1} dots w_j$. A *partial item* for production $r$ asserts that a head-adjacent slice of the right-hand side has been assembled over $w_{i+1} dots w_j$, and the remaining symbols to the left and right are yet to be combined.
+  Let $beta = w_1 w_2 dots w_n$ be the input fragment. Items are placed in $T[i,j]$ when they cover the span $w_{i+1} dots w_j$. A partial item $(r, s, t)$ projects to a complete item for $D$ once $s = 0$ and $t = pi_r$.
 
   == H-Cover
 
-  The _h-cover_ $cal(H)(G)$ is computed once from the grammar and reused across all inputs. For each production $D -> Z_1 dots Z_(pi)$ with head $Z_tau$, the cover records:
+  The h-cover $cal(H)(G)$ encodes three families of inference rule derived from the grammar, computed once at preparation time and reused across all inputs.
 
-  - *Projections* — a complete item for $D$ can be projected once the head partial item is complete.
-  - *Left expansions* — a partial item can be extended leftward by combining with symbol $Z_(tau - 1), Z_(tau - 2), dots$ found elsewhere in the table.
-  - *Right expansions* — symmetrically, the partial item is extended rightward.
+  For each production $r : D -> Z_1 dots Z_(pi_r)$ with head at position $tau_r$:
+
+  *Projections.* The head symbol $Z_(tau_r)$ seeds an initial partial item $(r, tau_r - 1, tau_r)$ spanning only the head position. For unit productions ($pi_r = 1$), the head projects directly to a complete item for $D$.
+
+  *Left expansions.* A partial item $(r, s, t)$ with $s > 0$ requires $Z_s$ as its immediate left neighbour. If $Z_s$ is assembled over $T[i', i]$, the item combines with it to yield $(r, s-1, t)$ in $T[i', j]$.
+
+  *Right expansions.* Symmetrically, a partial item $(r, s, t)$ with $t < pi_r$ requires $Z_(t+1)$ as its immediate right neighbour. If $Z_(t+1)$ is assembled over $T[j, j']$, it yields $(r, s, t+1)$ in $T[i, j']$.
+
+  Epsilon-nullable nonterminals admit a further class of *epsilon projections*: if an expansion expects a nonterminal $B$ that derives $epsilon$, the partial item may advance without finding $B$ in the table.
 
   == Agenda
 
-  Recognition fills $T$ via an agenda. When item $a$ is added to $T[i,j]$ for the first time it is enqueued. Processing $a$ applies four rules:
+  The table is filled by a worklist agenda. Items are enqueued when first added to a cell; duplicate additions are discarded. Dequeueing item $a$ from $T[i,j]$ triggers four operations.
 
-  + *Project:* add the complete item projected from $a$.
-  + *Left-expand:* find all $i' <= i$ such that the required left symbol is in $T[i',i]$; add the extended partial item to $T[i',j]$.
-  + *Right-expand:* find all $j' >= j$ such that the required right symbol is in $T[j,j']$; add the extended partial item to $T[i,j']$.
-  + *Reverse:* $a$ may be the missing child in an already-triggered expansion. Scan for matching triggers and produce the resulting item.
+  + *Project.* If $a$ is ready to project (a complete item, or a partial item with $s = 0$ and $t = pi_r$), add the projected item to $T[i,j]$.
+  + *Left-expand.* If $a$ is a partial item $(r, s, t)$ requiring $Z_s$ to its left, probe all cells $T[i', i]$ for the required symbol and add $(r, s-1, t)$ to $T[i', j]$ for each match.
+  + *Right-expand.* If $a$ requires $Z_(t+1)$ to its right, probe all cells $T[j, j']$ and add $(r, s, t+1)$ to $T[i, j']$ for each match.
+  + *Reverse.* Item $a$ may provide the missing child for a partial item already assembled in some other cell. The table records such blocked items; when $a$ arrives, those waiting for $a$ at boundary $i$ or $j$ are combined and enqueued.
 
-  The agenda terminates because each item is enqueued at most once and $T$ is finite.
+  Because each item is enqueued at most once and the table is finite, the agenda terminates.
 
   == Boundary Seeding
 
-  The agenda alone fills $T[0,n]$ only when the fragment has sufficient left context starting from $w_1$. For fragments whose left or right boundary is missing, two additional passes are needed.
+  The agenda fills $T[0,n]$ only when the fragment has sufficient left context starting at $w_1$. Fragments missing left or right context require additional seeding.
 
-  *L-Reduce* processes prefix spans $T[0,k]$ for increasing $k$. If an item at $T[0, k-1]$ is a right child of some expansion whose left child is absent from the input, a virtual left sibling is injected and the agenda is re-run. The virtual sibling represents the missing left context.
+  *Initial seeding.* Before the agenda runs, the edge cells $T[0,1]$ and $T[n-1,n]$ receive items whose derivation requires a missing neighbour. For any partial item derivable from $w_1$ that needs a left sibling absent from $beta$, we inject the item with a virtual node recording the missing constituent. The symmetric injection handles right siblings at $T[n-1,n]$. These virtual nodes become leaves in the reconstructed parse tree.
 
-  *R-Reduce* (applied only if $T[0,n]$ is empty after L-Reduce) does the same in the other direction, injecting virtual right siblings into suffix spans $T[k,n]$.
+  *L-Reduce.* If $T[0,n]$ is empty after the main agenda, we process each prefix span $T[0,k]$ for $k = 1, dots, n$. Items at $T[0,k]$ that can be extended leftward with a virtual left sibling are injected and the agenda is re-run. This handles fragments whose left boundary falls in the interior of a derivation.
 
-  A final closure step runs on $T[0,n]$ directly, combining prefix and suffix derivations that meet in the middle.
+  *R-Reduce.* If $T[0,n]$ is still empty after L-Reduce, the same process runs on suffix spans $T[k,n]$ for decreasing $k$. A final closure pass runs directly on $T[0,n]$, combining prefix and suffix derivations that meet at the full span.
 
   == Root Extraction
 
-  Items in $T[0,n]$ span the entire fragment, possibly with virtual gaps. For each complete item $I_A in T[0,n]$, we climb the cover productions to find the covering nonterminal $A$ and collect the virtual gap descriptors accumulated during boundary seeding. This yields the root candidates: $(A, T_A, alpha, gamma)$, sorted by gap count.
+  Every complete item $A$ in $T[0,n]$ identifies a nonterminal covering $beta$. The covering set $cal(C)(beta)$ is assembled from these items; for each, the parse tree is reconstructed by following derivation pointers stored during recognition.
+
+  A *subtree-dominance filter* removes redundant candidates: if the best parse tree for $A$ appears as a direct child in the best parse tree for $B$, then $A$ is dominated by $B$ and excluded from the output. Surviving candidates are ranked by gap count — the number of virtual nodes in their best parse tree — so that the most complete interpretations appear first.
 
   = Implementation
 
-  The implementation is in OCaml and separates grammar preparation from recognition.
+  The implementation is in OCaml and separates grammar preparation from recognition, so that the same prepared grammar is reused across an entire corpus of fragments.
 
-  #block(fill: luma(242), stroke: 0.5pt + luma(200), inset: (x: 8pt, y: 6pt), radius: 3pt, width: 100%)[
-    #text(size: 9pt)[
-      *Prepare*(G) \
-      1. For each production and head position: add projections, left/right expansions to $cal(H)$ \
-      2. Compute nullable set; add epsilon-projection rules \
-      3. Return $cal(H)(G)$
-    ]
-  ]
-  #v(0.4em)
-  #block(fill: luma(242), stroke: 0.5pt + luma(200), inset: (x: 8pt, y: 6pt), radius: 3pt, width: 100%)[
-    #text(size: 9pt)[
-      *Recognize*($cal(H)$, $beta$) \
-      1. Initialise $T[i,j] = emptyset$ for all $i,j$ \
-      2. Seed terminals into $T[k-1,k]$ from projections \
-      3. Run agenda \
-      4. L-Reduce: inject virtual left gaps; re-run agenda \
-      5. If $T[0,n] = emptyset$: R-Reduce symmetrically \
-      6. Final closure on $T[0,n]$ \
-      7. Return $T$
-    ]
-  ]
-  #v(0.4em)
-  #block(fill: luma(242), stroke: 0.5pt + luma(200), inset: (x: 8pt, y: 6pt), radius: 3pt, width: 100%)[
-    #text(size: 9pt)[
-      *Query*($T$, $n$) \
-      1. For each $I_A in T[0,n]$: climb productions; collect gap descriptors \
-      2. Return root candidates sorted by gap count
-    ]
-  ]
+  *Grammar pipeline.* Grammars are read from ANTLR4 `.g4` files. The reader strips comments, splits rules, and desugars operator notation: `x+` becomes `x x*`, and `x*` introduces a fresh nonterminal with productions `x* -> x x* | ε`. Uppercase identifiers and single-quoted strings become terminals; lowercase identifiers become nonterminals. The pipeline produces a flat record of nonterminals, terminals, productions, and a designated start symbol.
 
-  Grammar preparation is performed once per grammar; the resulting $cal(H)(G)$ is reused across all fragments. This is significant in the patch analysis setting, where thousands of fragments from the same language are processed in sequence.
+  *Preparation.* `prepare(G)` computes the h-cover together with two input-independent auxiliary tables. The _nullable set_ identifies nonterminals deriving $epsilon$ and drives epsilon projections. The _min-yield table_ maps each nonterminal to the shortest terminal string it derives; virtual nodes in the output are labelled with this completion rather than an abstract nonterminal name.
+
+  *Recognition.* `recognize(H, beta)` seeds epsilons and boundary items into the empty table, runs the worklist agenda, and applies L-Reduce and R-Reduce as described above. Derivation pointers are stored alongside each item so that parse trees can be reconstructed after recognition completes.
+
+  *Tree reconstruction.* Trees are reconstructed lazily from the stored derivation pointers. Reconstruction is capped at five trees per root to avoid cartesian-product blowup in ambiguous grammars; in practice the first tree suffices to identify the syntactic category and gap description.
 
   = Evaluation
 
