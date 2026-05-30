@@ -65,7 +65,7 @@
 
   Given a context-free grammar $G$ and a token sequence $beta$, our algorithm returns the covering set $cal(C)(beta) subset.eq N$ of nonterminals under which $beta$ appears as a substring, together with parse trees rooted at nonterminals in $cal(C)(beta)$ and descriptions of the missing context. This allows us to compare two fragments with the same covering set directly as instances of the same grammatical construct.
 
-  In this paper we describe an adaptation of the h-cover framework of #cite(<sattastock1994>) to the fragment parsing problem, returning $cal(C)(beta)$ with parse trees and context descriptions for any context-free grammar. We evaluate it on real fragments drawn from Linux kernel patches.
+  In this paper we describe an adaptation of the h-cover framework of Satta and Stock #cite(<sattastock1994>) to the fragment parsing problem, returning $cal(C)(beta)$ with parse trees and context descriptions for any context-free grammar. We evaluate it on real fragments drawn from Linux kernel patches.
 
   = Problem
 
@@ -110,20 +110,32 @@
   $chevron.l "cl" chevron.r$ is the missing left sibling and $chevron.l "n" chevron.r$ the missing right terminal, giving $L_"VP" = (chevron.l "cl" chevron.r)$ and $R_"VP" = (chevron.l "n" chevron.r)$. Boundary seeding promotes VP into S, prepending $chevron.l "NP" chevron.r$, so $L_S = (chevron.l "NP" chevron.r, chevron.l "cl" chevron.r)$ and $R_S = (chevron.l "n" chevron.r)$.
 
   = Terminology
+  The *recognition table* $T$ is an $(n+1) times (n+1)$ array for an input of length $n$. Cell $T[i,j]$ holds items representing derivations assembled over the span $w_(i+1) dots w_j$.
 
-  Each production $r : D -> Z_1 dots Z_(pi_r)$ in the grammar designates one symbol as its *head*, at position $tau_r$. Recognition begins at head symbols. When a head symbol is found in the input, it is *projected* upward into the production it anchors. For example, in the production $"VP" -> "cl" bold(v) "NP"$ with head $bold(v)$, seeing the token "v" projects it to a partial item $(r_"VP", 1, 2)$, a position in the VP production indicating that the head has been assembled and "cl" and NP are still to be found by the H-cover rules.
+  Two kinds of item appear in $T$:
+
+  - A *complete item* $A$ which asserts that nonterminal $A$ derives the span exactly.
+  - A *partial item* $(r, s, t)$ that represents partial progress on production $r : D -> Z_1 dots Z_(pi_r)$ with head at position $tau_r$.
+
+  Each production $r : D -> Z_1 dots Z_(pi_r)$ in the grammar designates one symbol as its *head*, at position $tau_r$ for $1 <= tau_r <= pi_r $.
+
+  A partial item starts from the head symbol $Z_(tau_r)$, seeded by *projection*, and grows outward through *left* and *right expansion*. The head always stays within the assembled range ($s < tau_r <= t$); when $s = 0$ and $t = pi_r$ the full right-hand side is covered.
+
+  For example, in the production $"VP" -> "cl" bold(v) "NP"$, we assign $bold(v)$ as the head. Seeing the token "v" in the input projects it to the partial item $(r_"VP", 1, 2)$. Then we search for "cl" and NP to complete it.
 
   #v(0.3em)
   #block(fill: luma(248), stroke: 0.5pt + luma(200), inset: (x: 8pt, y: 6pt), radius: 3pt, width: 100%)[
     #let on(s) = box(stroke: 0.5pt, fill: luma(212), inset: (x: 5pt, y: 3pt))[#text(size: 8pt)[#s]]
     #let off = box(stroke: (paint: luma(160), dash: "dashed"), inset: (x: 5pt, y: 3pt))[#h(1.4em)]
-    #align(center)[#text(size: 8.5pt)[VP $arrow.r$ cl *v* NP #h(1em) (head: v)]]
+    #align(center)[#text(size: 8.5pt)[$r$ : VP $arrow.r$ cl *v* NP #h(1em) (head: v, $tau_r = 2$, $pi_r = 3$)]]
     #v(0.4em)
     #grid(
       columns: (3.8em, auto, auto, auto, 1fr),
       column-gutter: 4pt,
       row-gutter: 3pt,
       align: (right + horizon, center + horizon, center + horizon, center + horizon, left + horizon),
+      [#text(size: 8pt, fill: luma(120))[input]],  [#text(size: 8pt, fill: luma(120))[cl]], on("v"), [#text(size: 8pt, fill: luma(120))[NP]], [#text(size: 8pt, fill: luma(120))[seen "v"]],
+      [],                              [],        [#text(size: 10pt)[$arrow.b$]], [], [],
       [#text(size: 8pt)[*project*]],   off,       on("v"), off,       [#text(size: 8pt)[(r, 1, 2)]],
       [],                              [],        [#text(size: 10pt)[$arrow.b$]], [], [],
       [#text(size: 8pt)[*L-expand*]],  on("cl"),  on("v"), off,       [#text(size: 8pt)[(r, 0, 2)]],
@@ -133,21 +145,13 @@
   ]
   #v(0.3em)
 
-  *Projection* is the step that creates an initial partial item from a recognized head symbol, without consuming additional input. For a unit production ($pi_r = 1$), the head projects directly to a complete item for the left-hand side.
+  *Projection* is the step that creates an initial partial item from a recognized head symbol, without consuming additional input. For a unit production ($pi_r = 1$), the head projects directly to a complete item.
 
-  *Expansion* is the step that extends a partial item by combining it with an adjacent item in the table. A *left expansion* consumes the next required symbol to the left; a *right expansion* does the same to the right. When the final remaining symbol of a production is consumed by an expansion, the result is a complete item for the left-hand side — complete items are never produced by projection for non-unit productions.
+  *Expansion* is the step that extends a partial item by combining it with an adjacent item in the table. A *left expansion* consumes the next required symbol to the left while a *right expansion* does the same to the right. For non-unit productions, a complete item is produced only by the final expansion step, not by projection.
 
-  The *recognition table* $T$ is an $(n+1) times (n+1)$ array for an input of length $n$. Cell $T[i,j]$ holds items representing derivations assembled over the span $w_{i+1} dots w_j$.
+  The *h-cover* $cal(H)(G)$ is a set of production rules derived from the grammar. It is essentially an intermediate grammar that preserves the original language. It is computed once and can be reused across all inputs.
 
-  Two kinds of item appear in $T$:
-
-  - A *complete item* $A$ which asserts that nonterminal $A$ derives the span exactly.
-  - A *partial item* $(r, s, t)$ that represents partial progress on production $r : D -> Z_1 dots Z_(pi_r)$ with head at position $tau_r$.
-    - The range $Z_(s+1) dots Z_t$ has been assembled over the span. A partial item is created by projecting from the head symbol $Z_(tau_r)$ and grows only by left and right expansion, so the head is always within the assembled range ($s < tau_r <= t$). When $s = 0$ and $t = pi_r$ the full right-hand side is covered.
-
-  The *h-cover* $cal(H)(G)$ is a set of production rules derived from the grammar. It is essentially an intermediate grammar that preserves the original language of the grammar. It is computed once per grammar and reused across all inputs.
-
-  *Virtual nodes* $chevron.l X chevron.r$ represent constituents that participate in a derivation but are absent from the input fragment. They appear as leaves in the reconstructed parse tree and directly identify missing context.
+  *Virtual nodes* $chevron.l X chevron.r$ represent constituents that participate in a derivation but are absent from the input fragment. They give us possible completions of the fragment.
 
   *L-Reduce* and *R-Reduce* are passes applied when the full span $T[0,n]$ is empty after the main agenda. L-Reduce processes prefix spans $T[0,k]$ by injecting virtual left siblings for items whose left context is missing from the fragment. R-Reduce does the same for suffix spans $T[k,n]$ when L-Reduce is insufficient.
 
