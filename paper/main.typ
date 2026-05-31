@@ -325,6 +325,8 @@
 
   *Bidirectional parsing.* Satta and Stock #cite(<sattastock1994>) develop the h-cover framework for bidirectional tabular recognition of complete input. We adopt the framework but change the goal: instead of recognising membership in $L(G)$, we classify a bare fragment by computing $cal(C)(beta)$ with parse trees and context descriptions. Partial items, intermediate in the original algorithm, become the primary output of ours.
 
+  *Parsing with derivatives.* Might, Darais, and Spiewak #cite(<might2011>) extend Brzozowski derivatives from regular languages to context-free grammars: the derivative of a grammar $G$ with respect to a token $c$ is a new grammar generating $D_c(L(G)) = {w | cw in L(G)}$. Thiemann #cite(<thiemann2017>) further generalises this to partial derivatives for CFLs via $mu$-regular expressions. Both frameworks assume a complete input consumed left to right and do not address incomplete or fragmentary inputs.
+
   *Error recovery.* Tree-sitter and similar tools find a single best repair when parsing fails. This is appropriate for editors but not for patch analysis, where multiple grammatical classifications may simultaneously hold for the same fragment.
 
   = Conclusions
