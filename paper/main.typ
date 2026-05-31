@@ -153,23 +153,25 @@
 
   *Virtual nodes* $chevron.l X chevron.r$ represent constituents that participate in a derivation but are absent from the input fragment. They give us possible completions of the fragment.
 
-  *L-Reduce* and *R-Reduce* are passes applied when the full span $T[0,n]$ is empty after the main agenda. L-Reduce processes prefix spans $T[0,k]$ by injecting virtual left siblings for items whose left context is missing from the fragment. R-Reduce does the same for suffix spans $T[k,n]$ when L-Reduce is insufficient.
+  The *worklist* is the queue that drives recognition. Items are added to the worklist when first placed into any cell and processed at most once per cell. Processing an item triggers projection and expansion steps that may add further items.
+
+  *L-Reduce* and *R-Reduce* are passes applied when the full span $T[0,n]$ is empty after the worklist empties. L-Reduce processes prefix spans $T[0,k]$ by injecting virtual left siblings for items whose left context is missing from the fragment. R-Reduce does the same for suffix spans $T[k,n]$ when L-Reduce is insufficient.
 
   = Overview of the algorithm
 
   Fix a head position in each production of $G$ and precompute the h-cover $cal(H)(G)$ #cite(<sattastock1994>). This runs once per grammar and is shared across all inputs.
 
-  Recognition seeds the table from the input tokens. Each token $w_i$ places an initial partial item into $T[i-1, i]$ for every production where it is the head. The agenda then expands items outward: a partial item picks up its required left or right neighbour from an adjacent cell, and when the final neighbour is found the result is a complete item. A complete item projects into further productions where it serves as the head, seeding new partial items in the same cell. This continues until no new items arrive.
+  Initially, each token $w_i$ adds projected items into $T[i-1,i]$, yielding initial partial items or complete items. These items are then added to the worklist and then processed. Items in $T[i,j]$ extend left by combining with any item in $T[i',i] (i' < i)$ that provide the required symbol, placing the result in $T[i',j]$. For right expansions, items combine with any item in $T[j,j']$ ($j' > j$), placing the result in $T[i,j']$.
 
-  A fragment missing its surrounding context cannot be assembled to $T[0,n]$ from tokens alone. Boundary seeding injects items at $T[0,1]$ and $T[n-1,n]$ with virtual nodes standing in for absent left and right siblings, letting those items combine inward across the fragment. If $T[0,n]$ is still empty after the main agenda, L-Reduce and R-Reduce inject virtual siblings at prefix and suffix spans respectively and the agenda re-runs until $T[0,n]$ is populated.
+  A fragment missing its surrounding context cannot be assembled to $T[0,n]$ from tokens alone. Boundary seeding injects items at $T[0,1]$ and $T[n-1,n]$ with virtual nodes standing in for absent left and right siblings, letting those items combine inward across the fragment. If $T[0,n]$ is still empty after the worklist empties, L-Reduce and R-Reduce inject virtual siblings at prefix and suffix spans respectively and the worklist re-runs until $T[0,n]$ is populated.
 
   Complete items in $T[0,n]$ are the covering nonterminals. The parse tree for each is reconstructed from derivation pointers stored during recognition; virtual nodes in the tree give the left and right gap descriptions directly.
 
   = Algorithm
 
-  == Recognition Table
+  == Recognition table
 
-  Let $beta = w_1 w_2 dots w_n$ be the input fragment. An item in $T[i,j]$ asserts a derivation assembled over the span $w_{i+1} dots w_j$.
+  For input $beta = w_1 dots w_n$, items in $T[i,j]$ cover the span $w_{i+1} dots w_j$.
 
   == H-Cover
 
@@ -177,40 +179,85 @@
 
   For each production $r : D -> Z_1 dots Z_(pi_r)$ with head at position $tau_r$:
 
-  *Projections.* The head symbol $Z_(tau_r)$ seeds an initial partial item $(r, tau_r - 1, tau_r)$ spanning only the head position. For unit productions ($pi_r = 1$), the head projects directly to a complete item for $D$.
+  *Projections :* The head symbol $Z_(tau_r)$ seeds an initial partial item $(r, tau_r - 1, tau_r)$ spanning only the head position. For unit productions ($pi_r = 1$), the head projects directly to a complete item for $D$.
+  *Left expansions :* A partial item $(r, s, t)$ with $s > 0$ requires $Z_s$ as its immediate left neighbour. If $Z_s$ is assembled over $T[i', i]$, the item combines with it to yield $(r, s-1, t)$ in $T[i', j]$.
 
-  *Left expansions.* A partial item $(r, s, t)$ with $s > 0$ requires $Z_s$ as its immediate left neighbour. If $Z_s$ is assembled over $T[i', i]$, the item combines with it to yield $(r, s-1, t)$ in $T[i', j]$.
-
-  *Right expansions.* Symmetrically, a partial item $(r, s, t)$ with $t < pi_r$ requires $Z_(t+1)$ as its immediate right neighbour. If $Z_(t+1)$ is assembled over $T[j, j']$, it yields $(r, s, t+1)$ in $T[i, j']$.
+  *Right expansions :* Symmetrically, a partial item $(r, s, t)$ with $t < pi_r$ requires $Z_(t+1)$ as its immediate right neighbour. If $Z_(t+1)$ is assembled over $T[j, j']$, it yields $(r, s, t+1)$ in $T[i, j']$.
 
   Epsilon-nullable nonterminals admit a further class of *epsilon projections*: if an expansion step expects a nonterminal $B$ that derives $epsilon$, the partial item may advance without finding $B$ in the table.
 
-  == Agenda
+  == Worklist
 
-  The table is filled by a worklist agenda. Items are enqueued when first added to a cell; duplicates are discarded. Dequeueing item $a$ from $T[i,j]$ triggers four operations:
+  Items are enqueued when first added to a cell; duplicates are discarded. Dequeueing item $a$ from $T[i,j]$ triggers four operations:
 
-  + *Project.* If $a$ is a complete item, find each production where its nonterminal serves as the head symbol and add the initial partial item for that production to $T[i,j]$ (a complete item directly, for unit productions).
+  + *Project.* If $a$ is a complete item and $(i,j) != (0,n)$, find each production where its nonterminal serves as the head symbol and add the initial partial item for that production to $T[i,j]$ (a complete item directly, for unit productions).
   + *Left-expand.* If $a$ is a partial item $(r, s, t)$ with $s > 0$, probe all cells $T[i', i]$ for $Z_s$ and add $(r, s-1, t)$ to $T[i', j]$ for each match.
   + *Right-expand.* If $a$ has $t < pi_r$, probe all cells $T[j, j']$ for $Z_(t+1)$ and add $(r, s, t+1)$ to $T[i, j']$ for each match.
   + *Reverse.* Item $a$ may serve as a left or right child in an expansion assembled in another cell. For each production in the h-cover where $a$ can play this role, the table is probed for the complementary sibling and the combined item is enqueued.
 
-  Because each item is enqueued at most once and the table is finite, the agenda terminates.
+  Because each item is enqueued at most once and the table is finite, the worklist terminates.
 
-  == Boundary Seeding
+  == Boundary seeding
 
-  When $beta$ is a proper infix — its first token needs a left sibling or its last needs a right sibling absent from the input — the main agenda cannot assemble items over $T[0,n]$ from tokens alone.
+  When $beta$ is a proper infix — its first token needs a left sibling or its last needs a right sibling absent from the input — the worklist cannot assemble items over $T[0,n]$ from tokens alone.
 
-  *Initial seeding.* Before the agenda runs, the edge cells $T[0,1]$ and $T[n-1,n]$ receive items whose derivation requires a missing neighbour. For any item derivable from $w_1$ that requires a left sibling absent from $beta$, we inject it with a virtual node recording the missing constituent; the symmetric injection applies at $T[n-1,n]$. These virtual nodes become leaves in the reconstructed parse tree.
+  *Initial seeding.* Before the worklist runs, the edge cells $T[0,1]$ and $T[n-1,n]$ receive items whose derivation requires a missing neighbour. For any item derivable from $w_1$ that requires a left sibling absent from $beta$, we inject it with a virtual node recording the missing constituent; the symmetric injection applies at $T[n-1,n]$. These virtual nodes become leaves in the reconstructed parse tree.
 
-  *L-Reduce.* If $T[0,n]$ is empty after the main agenda, we process each prefix span $T[0,k]$ for $k = 1, dots, n$: items at $T[0,k]$ that can extend leftward with a virtual left sibling are injected and the agenda re-run.
+  *L-Reduce.* If $T[0,n]$ is empty after the worklist empties, we process each prefix span $T[0,k]$ for $k = 0, dots, n-1$: items at $T[0,k]$ that can extend leftward with a virtual left sibling are injected and the worklist re-run.
 
   *R-Reduce.* If $T[0,n]$ is still empty, the same process runs on suffix spans $T[k,n]$ for decreasing $k$. A final closure pass then runs on $T[0,n]$ directly, combining prefix and suffix derivations that meet at the full span.
 
-  == Root Extraction
+  == Root extraction
 
   Every complete item $A$ in $T[0,n]$ identifies a nonterminal covering $beta$. The covering set $cal(C)(beta)$ is assembled from these; for each, the parse tree is reconstructed by following derivation pointers stored during recognition.
 
   A *subtree-dominance filter* removes redundant candidates: if the best parse tree for $A$ appears as a direct subtree of the best parse tree for $B$, then $A$ is dominated by $B$ and excluded. Surviving candidates are ranked by gap count so the most complete interpretations appear first.
+
+  = Pseudocode
+
+  #let kw(s) = text(weight: "bold")[#s]
+  #let ind(n, s) = [#h(n * 1.5em)#s]
+
+  Recognition takes a prepared grammar and an input fragment $beta$. The table $T$ is initialised empty. Three seeding steps populate the first cells: epsilon projections for nullable nonterminals, initial partial items for each input token at its span, and boundary items at the edges $T[0,1]$ and $T[n-1,n]$ for fragments missing left or right context. The worklist then runs to saturation.
+
+  If $T[0,n]$ is still empty after the worklist empties — meaning no item spans the full fragment — L-Reduce fires: for each prefix span $T[0,k]$, items there are extended with a virtual left sibling and the worklist re-runs. If $T[0,n]$ remains empty, R-Reduce does the same from suffix spans. A final frontier pass then runs directly on $T[0,n]$ to promote any items that arrived via inductive fill.
+
+  #figure(
+    block(stroke: 0.5pt + luma(180), inset: (x: 10pt, y: 8pt), radius: 3pt, width: 100%)[
+      #set par(leading: 0.55em)
+      #set text(size: 9.5pt)
+      *recognize*(pg, $beta = w_1 dots w_n$) \
+      #ind(1, [initialise $(n+1) times (n+1)$ table $T$]) \
+      #ind(1, [seed epsilons; seed terminals into $T[i-1, i]$ for each $w_i$]) \
+      #ind(1, [seed left boundary $T[0,1]$; seed right boundary $T[n-1,n]$]) \
+      #ind(1, [*process_agenda*($T$)]) \
+      #ind(1, [#kw[if] $T[0,n] = emptyset$:]) \
+      #ind(2, [#kw[for] $k = 1$ #kw[to] $n$: L-reduce at $T[0,k]$; *process_agenda*($T$)]) \
+      #ind(1, [#kw[if] $T[0,n] = emptyset$:]) \
+      #ind(2, [#kw[for] $k = n-1$ #kw[downto] $0$: R-reduce at $T[k,n]$; *process_agenda*($T$)]) \
+      #ind(2, [closure pass on $T[0,n]$; *process_agenda*($T$)]) \
+      #ind(1, [frontier pass on new $T[0,n]$ items; *process_agenda*($T$)]) \
+      #ind(1, [#kw[return] $T$])
+    ],
+    caption: [Recognition]
+  )
+
+  Each dequeued item triggers up to four operations. A complete item projects into any production where its nonterminal is the head, seeding a new partial item in the same cell. A partial item $(r, s, t)$ with $s > 0$ probes every cell $T[i', i]$ to its left for $Z_s$; each match yields $(r, s-1, t)$ in $T[i', j]$. Symmetrically, $t < pi_r$ triggers a rightward probe. The reverse step handles the dual case: item $a$ may be the sibling that some existing partial item was waiting for, so the table is probed for those blocked items and the combinations are enqueued. An item is enqueued at most once, so the worklist terminates.
+
+  #figure(
+    block(stroke: 0.5pt + luma(180), inset: (x: 10pt, y: 8pt), radius: 3pt, width: 100%)[
+      #set par(leading: 0.55em)
+      #set text(size: 9.5pt)
+      *process_agenda*($T$) \
+      #ind(1, [#kw[while] worklist $!= emptyset$:]) \
+      #ind(2, [dequeue $(a, i, j)$]) \
+      #ind(2, [#kw[if] $a$ is a complete item #kw[and] $(i,j) != (0,n)$: project into productions where $a$ is head]) \
+      #ind(2, [#kw[if] $a = (r, s, t)$ with $s > 0$: left-expand with $T[i', i]$ for all $i' <= i$]) \
+      #ind(2, [#kw[if] $a = (r, s, t)$ with $t < pi_r$: right-expand with $T[j, j']$ for all $j' >= j$]) \
+      #ind(2, [reverse: probe for partial items that can use $a$ as a child])
+    ],
+    caption: [Worklist]
+  )
 
   = Implementation
 
@@ -220,7 +267,7 @@
 
   *Preparation.* `prepare(G)` computes the h-cover together with two input-independent auxiliary tables. The _nullable set_ identifies nonterminals deriving $epsilon$ and drives epsilon projections. The _min-yield table_ maps each nonterminal to the shortest terminal string it derives; virtual nodes in the output are labelled with this completion rather than an abstract nonterminal name.
 
-  *Recognition.* `recognize(H, beta)` seeds epsilons and boundary items into the empty table, runs the worklist agenda, and applies L-Reduce and R-Reduce as described above. Derivation pointers are stored alongside each item so that parse trees can be reconstructed after recognition completes.
+  *Recognition.* `recognize(H, beta)` seeds epsilons and boundary items into the empty table, runs the worklist, and applies L-Reduce and R-Reduce as described above. Derivation pointers are stored alongside each item so that parse trees can be reconstructed after recognition completes.
 
   *Tree reconstruction.* Trees are reconstructed lazily from the stored derivation pointers. Reconstruction is capped at five trees per root to avoid cartesian-product blowup in ambiguous grammars; in practice the first tree suffices to identify the syntactic category and gap description.
 
