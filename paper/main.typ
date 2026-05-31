@@ -163,7 +163,41 @@
 
   Initially, each token $w_i$ adds projected items into $T[i-1,i]$, yielding initial partial items or complete items. These items are then added to the worklist and then processed. Items in $T[i,j]$ extend left by combining with any item in $T[i',i] (i' < i)$ that provide the required symbol, placing the result in $T[i',j]$. For right expansions, items combine with any item in $T[j,j']$ ($j' > j$), placing the result in $T[i,j']$.
 
-  A fragment missing its surrounding context cannot be assembled to $T[0,n]$ from tokens alone. Boundary seeding injects items at $T[0,1]$ and $T[n-1,n]$ with virtual nodes standing in for absent left and right siblings, letting those items combine inward across the fragment. If $T[0,n]$ is still empty after the worklist empties, L-Reduce and R-Reduce inject virtual siblings at prefix and suffix spans respectively and the worklist re-runs until $T[0,n]$ is populated.
+  A fragment missing its surrounding context cannot be assembled to $T[0,n]$ from tokens alone. Before the worklist runs, the edge cells $T[0,1]$ and $T[n-1,n]$ are seeded with items whose missing left or right sibling is inferred from the grammar and recorded as a virtual node. The inferred items combine with the boundry tokens to produce items at the fragment boundary. This allows for enough context to participate in normal expansion.
+  
+  If $T[0,n]$ is still empty after the worklist is empty, L-Reduce processes each prefix span $T[0,k](k < n)$, climbing the h-cover from items already there. It treats the required left sibling at each step as virtual, and adds the resulting items back to $T[0,k]$. The worklist then runs on those new items, which can right-expand toward $T[0,n]$. If $T[0,n]$ is still empty, R-Reduce does the same from each suffix span $T[k,n]$, treating the right sibling as virtual and left-expanding toward $T[0,n]$.
+
+
+  #let sp(s) = box(stroke: 0.5pt + black, fill: luma(210), inset: (x: 5pt, y: 3pt))[#text(size: 8pt)[$#s$]]
+  #let vn = box(stroke: (paint: luma(150), dash: "dashed"), inset: (x: 5pt, y: 3pt))[#text(size: 8pt, style: "italic")[$chevron.l ? chevron.r$]]
+  #let ar = box(inset: (x: 3pt, y: 3pt))[#text(size: 9pt)[→]]
+  #let pl = box(inset: (x: 3pt, y: 3pt))[#text(size: 9pt)[+]]
+  #let sm(s) = box(inset: (x: 2pt, y: 3pt))[#text(size: 8pt)[#s]]
+  #let cap(s) = text(size: 7pt, fill: luma(120))[#s]
+
+  #v(0.3em)
+  #block(fill: luma(248), stroke: 0.5pt + luma(200), inset: (x: 10pt, y: 8pt), radius: 3pt, width: 100%)[
+    #text(size: 8pt, weight: "bold")[Boundary seeding] #v(0.4em)
+    #align(center)[#vn #pl #sp("w_1") #ar #sp("T[0,1]")]
+    #v(0.15em)
+    #align(center)[#sp("w_n") #pl #vn #ar #sp("T[n-1,n]")] #v(0.2em)
+    #align(center)[#cap[virtual siblings paired with edge tokens, seeded into edge cells]]
+  ]
+
+  #v(0.2em)
+  #block(fill: luma(248), stroke: 0.5pt + luma(200), inset: (x: 10pt, y: 8pt), radius: 3pt, width: 100%)[
+    #text(size: 8pt, weight: "bold")[L-Reduce] #v(0.4em)
+    #align(center)[#vn #pl #sm[$cal(C)(beta_k)$] #ar #sm[$T[0,k]'$]] #v(0.2em)
+    #align(center)[#cap[new items in $T[0,k]'$ right-expand toward $T[0,n]$, populating $cal(C)(beta)$]]
+  ]
+
+  #v(0.2em)
+  #block(fill: luma(248), stroke: 0.5pt + luma(200), inset: (x: 10pt, y: 8pt), radius: 3pt, width: 100%)[
+    #text(size: 8pt, weight: "bold")[R-Reduce] #v(0.4em)
+    #align(center)[#sm[$cal(C)(beta_(-k))$] #pl #vn #ar #sm[$T[k,n]'$]] #v(0.2em)
+    #align(center)[#cap[new items in $T[k,n]'$ left-expand toward $T[0,n]$, populating $cal(C)(beta)$]]
+  ]
+  #v(0.3em)
 
   Complete items in $T[0,n]$ are the covering nonterminals. The parse tree for each is reconstructed from derivation pointers stored during recognition; virtual nodes in the tree give the left and right gap descriptions directly.
 
