@@ -119,7 +119,7 @@
 
   Each production $r : D -> Z_1 dots Z_(pi_r)$ in the grammar designates one symbol as its *head*, at position $tau_r$ for $1 <= tau_r <= pi_r $.
 
-  A partial item starts from the head symbol $Z_(tau_r)$, seeded by *projection*, and grows outward through *left* and *right expansion*. The head always stays within the assembled range ($s < tau_r <= t$); when $s = 0$ and $t = pi_r$ the full right-hand side is covered.
+  A partial item starts from the head symbol $Z_(tau_r)$, seeded by *projection*, and grows outward through *left* and *right expansion*. The head always stays within the assembled range ($s < tau_r <= t$). When $s = 0$ and $t = pi_r$ the full right-hand side is covered.
 
   For example, in the production $"VP" -> "cl" bold(v) "NP"$, we assign $bold(v)$ as the head. Seeing the token "v" in the input projects it to the partial item $(r_"VP", 1, 2)$. Then we search for "cl" and NP to complete it.
 
@@ -157,21 +157,19 @@
 
   = Overview of the algorithm
 
-  Given a CFG $G$ and an input $beta$, each production in $G$ designates one symbol as the _head_ #cite(<sattastock1994>). Using these heads, we precompute an intermediate grammar called the _h-cover_ $cal(H)(G)$. In $cal(H)(G)$, the productions expand outwards from the selected head, and the binary nature of the productions means that every combination step merges exactly two spans. This allows us to use tabular methods to enumerate all valid derivations over every span of $beta$ in cubic time.
+  Fix a head position in each production of $G$ and precompute the h-cover $cal(H)(G)$ #cite(<sattastock1994>). This runs once per grammar and is shared across all inputs.
 
-  Every token in $beta$ is a potential starting point for a derivation. Initially, each token initiates a chain of upward projections through the grammar, each step applying a head cover production until no further projections apply. From there, analysis expands bidirectionally, combining with constituents to the left and right in any order until no new derivations can be found.
+  Recognition seeds the table from the input tokens. Each token $w_i$ places an initial partial item into $T[i-1, i]$ for every production where it is the head. The agenda then expands items outward: a partial item picks up its required left or right neighbour from an adjacent cell, and when the final neighbour is found the result is a complete item. A complete item projects into further productions where it serves as the head, seeding new partial items in the same cell. This continues until no new items arrive.
 
-  While this suffices for a complete input, a fragment may be missing its left or right context. The first or last token of $beta$ may need a left or right sibling that is absent from the input. To handle this, we seed the boundary cells $T[0,1]$ and $T[n-1,n]$ with all items reachable by inferring the missing left or right constituent from the grammar, a step we call _boundary seeding_. Each inferred constituent is recorded as a virtual node in the resulting parse tree.
+  A fragment missing its surrounding context cannot be assembled to $T[0,n]$ from tokens alone. Boundary seeding injects items at $T[0,1]$ and $T[n-1,n]$ with virtual nodes standing in for absent left and right siblings, letting those items combine inward across the fragment. If $T[0,n]$ is still empty after the main agenda, L-Reduce and R-Reduce inject virtual siblings at prefix and suffix spans respectively and the agenda re-runs until $T[0,n]$ is populated.
 
-  If $T[0,n]$ is empty after the main agenda, for each prefix span $T[0,k]$, the agenda processes items there with a virtual left sibling, producing new items that can reach $T[0,n]$. If $T[0,n]$ is still empty after this, then we do the same from suffix spans $T[k,n]$. The former is called L-Reduce, and the latter R-Reduce. A final agenda pass then runs on any items newly arrived in $T[0,n]$.
-
-  The items in $T[0,n]$ at the end span the full fragment. Each complete item there identifies a covering nonterminal, and the parse tree reconstructed from it carries the virtual nodes as leaves, directly giving $L_A$ and $R_A$.
+  Complete items in $T[0,n]$ are the covering nonterminals. The parse tree for each is reconstructed from derivation pointers stored during recognition; virtual nodes in the tree give the left and right gap descriptions directly.
 
   = Algorithm
 
   == Recognition Table
 
-  Let $beta = w_1 w_2 dots w_n$ be the input fragment. Items are placed in $T[i,j]$ when they cover the span $w_{i+1} dots w_j$. A partial item $(r, s, t)$ projects to a complete item for $D$ once $s = 0$ and $t = pi_r$.
+  Let $beta = w_1 w_2 dots w_n$ be the input fragment. An item in $T[i,j]$ asserts a derivation assembled over the span $w_{i+1} dots w_j$.
 
   == H-Cover
 
@@ -185,34 +183,34 @@
 
   *Right expansions.* Symmetrically, a partial item $(r, s, t)$ with $t < pi_r$ requires $Z_(t+1)$ as its immediate right neighbour. If $Z_(t+1)$ is assembled over $T[j, j']$, it yields $(r, s, t+1)$ in $T[i, j']$.
 
-  Epsilon-nullable nonterminals admit a further class of *epsilon projections*: if an expansion expects a nonterminal $B$ that derives $epsilon$, the partial item may advance without finding $B$ in the table.
+  Epsilon-nullable nonterminals admit a further class of *epsilon projections*: if an expansion step expects a nonterminal $B$ that derives $epsilon$, the partial item may advance without finding $B$ in the table.
 
   == Agenda
 
-  The table is filled by a worklist agenda. Items are enqueued when first added to a cell; duplicate additions are discarded. Dequeueing item $a$ from $T[i,j]$ triggers four operations.
+  The table is filled by a worklist agenda. Items are enqueued when first added to a cell; duplicates are discarded. Dequeueing item $a$ from $T[i,j]$ triggers four operations:
 
-  + *Project.* If $a$ is ready to project (a complete item, or a partial item with $s = 0$ and $t = pi_r$), add the projected item to $T[i,j]$.
-  + *Left-expand.* If $a$ is a partial item $(r, s, t)$ requiring $Z_s$ to its left, probe all cells $T[i', i]$ for the required symbol and add $(r, s-1, t)$ to $T[i', j]$ for each match.
-  + *Right-expand.* If $a$ requires $Z_(t+1)$ to its right, probe all cells $T[j, j']$ and add $(r, s, t+1)$ to $T[i, j']$ for each match.
-  + *Reverse.* Item $a$ may provide the missing child for a partial item already assembled in some other cell. The table records such blocked items; when $a$ arrives, those waiting for $a$ at boundary $i$ or $j$ are combined and enqueued.
+  + *Project.* If $a$ is a complete item, find each production where its nonterminal serves as the head symbol and add the initial partial item for that production to $T[i,j]$ (a complete item directly, for unit productions).
+  + *Left-expand.* If $a$ is a partial item $(r, s, t)$ with $s > 0$, probe all cells $T[i', i]$ for $Z_s$ and add $(r, s-1, t)$ to $T[i', j]$ for each match.
+  + *Right-expand.* If $a$ has $t < pi_r$, probe all cells $T[j, j']$ for $Z_(t+1)$ and add $(r, s, t+1)$ to $T[i, j']$ for each match.
+  + *Reverse.* Item $a$ may serve as a left or right child in an expansion assembled in another cell. For each production in the h-cover where $a$ can play this role, the table is probed for the complementary sibling and the combined item is enqueued.
 
   Because each item is enqueued at most once and the table is finite, the agenda terminates.
 
   == Boundary Seeding
 
-  The agenda fills $T[0,n]$ only when the fragment has sufficient left context starting at $w_1$. Fragments missing left or right context require additional seeding.
+  When $beta$ is a proper infix — its first token needs a left sibling or its last needs a right sibling absent from the input — the main agenda cannot assemble items over $T[0,n]$ from tokens alone.
 
-  *Initial seeding.* Before the agenda runs, the edge cells $T[0,1]$ and $T[n-1,n]$ receive items whose derivation requires a missing neighbour. For any partial item derivable from $w_1$ that needs a left sibling absent from $beta$, we inject the item with a virtual node recording the missing constituent. The symmetric injection handles right siblings at $T[n-1,n]$. These virtual nodes become leaves in the reconstructed parse tree.
+  *Initial seeding.* Before the agenda runs, the edge cells $T[0,1]$ and $T[n-1,n]$ receive items whose derivation requires a missing neighbour. For any item derivable from $w_1$ that requires a left sibling absent from $beta$, we inject it with a virtual node recording the missing constituent; the symmetric injection applies at $T[n-1,n]$. These virtual nodes become leaves in the reconstructed parse tree.
 
-  *L-Reduce.* If $T[0,n]$ is empty after the main agenda, we process each prefix span $T[0,k]$ for $k = 1, dots, n$. Items at $T[0,k]$ that can be extended leftward with a virtual left sibling are injected and the agenda is re-run. This handles fragments whose left boundary falls in the interior of a derivation.
+  *L-Reduce.* If $T[0,n]$ is empty after the main agenda, we process each prefix span $T[0,k]$ for $k = 1, dots, n$: items at $T[0,k]$ that can extend leftward with a virtual left sibling are injected and the agenda re-run.
 
-  *R-Reduce.* If $T[0,n]$ is still empty after L-Reduce, the same process runs on suffix spans $T[k,n]$ for decreasing $k$. A final closure pass runs directly on $T[0,n]$, combining prefix and suffix derivations that meet at the full span.
+  *R-Reduce.* If $T[0,n]$ is still empty, the same process runs on suffix spans $T[k,n]$ for decreasing $k$. A final closure pass then runs on $T[0,n]$ directly, combining prefix and suffix derivations that meet at the full span.
 
   == Root Extraction
 
-  Every complete item $A$ in $T[0,n]$ identifies a nonterminal covering $beta$. The covering set $cal(C)(beta)$ is assembled from these items; for each, the parse tree is reconstructed by following derivation pointers stored during recognition.
+  Every complete item $A$ in $T[0,n]$ identifies a nonterminal covering $beta$. The covering set $cal(C)(beta)$ is assembled from these; for each, the parse tree is reconstructed by following derivation pointers stored during recognition.
 
-  A *subtree-dominance filter* removes redundant candidates: if the best parse tree for $A$ appears as a direct child in the best parse tree for $B$, then $A$ is dominated by $B$ and excluded from the output. Surviving candidates are ranked by gap count — the number of virtual nodes in their best parse tree — so that the most complete interpretations appear first.
+  A *subtree-dominance filter* removes redundant candidates: if the best parse tree for $A$ appears as a direct subtree of the best parse tree for $B$, then $A$ is dominated by $B$ and excluded. Surviving candidates are ranked by gap count so the most complete interpretations appear first.
 
   = Implementation
 
