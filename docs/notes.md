@@ -33,6 +33,31 @@ Which right/left expansion rules fire at T[0,1] and T[n-1,n] is determined entir
 `entry.items` stores derivations as a `list`, using `List.mem` to check for duplicates.
 Could be a `Set` for O(log n) membership instead of O(n).
 
+## L-Reduce / R-Reduce — missing left_expansion virtual cases (FIXED 2026-06-23)
+
+`l_reduce_step` and `r_reduce_step` each apply "virtual extension" — fire a combination rule with one component missing (outside the fragment boundary). They were doing this only for `right_expansions`, ignoring `left_expansions` entirely.
+
+**What was missed:**
+- L-Reduce: `find_left_expansions(b)` — b is the known `right_item`, virtual component is `x_h`
+- R-Reduce: `find_left_expansions_by_left(b)` — b is the known `x_h`, virtual component is `right_item`
+
+**Why not caught:** Boundary seeding at T[0,1] and T[n-1,n] already uses both rule types. The gap only manifests when the item needing virtual extension first appears at T[0,k] for k > 1, after boundary seeding has run. Test grammars never exercised this.
+
+**Reproducer grammar:** `grammar_lreduce_left_expansion` in `grammars.ml`. Fragment `["c";"d";"e"]` on `X → A D E (head=D), A → B C (head=C)`. Without fix: X not inferred. With fix: X at T[0,3].
+
+**Fix:** added `find_left_expansions` call in `l_reduce_step` (new derivation `FromInductiveFillL`) and `find_left_expansions_by_left` call in `r_reduce_step` (reuses `FromInductiveFillRight`). Also added `FromInductiveFillL` variant to `types.ml`, `convert.ml`, `reconstruct.ml`. Test: `recognition / l_reduce left_expansion`.
+
+## Coverage grammars added (2026-06-23)
+
+Two new grammars in `grammars.ml` and three tests added to the "recognition" suite (50 total):
+
+**`grammar_rreduce_left_expansion`** — exercises R-Reduce `find_left_expansions_by_left`.
+`TOP → F P (head=F)`, `P → B H (head=H)`, `B → C D (head=D)`. Fragment `["f";"c";"d"]` — H missing from P. After the agenda places CompleteItem("B") at T[1,3] via C+D combination, R-Reduce k=0 fires `find_left_expansions_by_left(B)`: left_expansion (P, B, PartialItem(P→BH,1,2)) → P at T[1,3] with virtual H. Agenda then combines P with PartialItem(TOP→FP,0,1) → TOP at T[0,3]. Without the fix (only `find_right_expansions`), P→BH has no right_expansion rule (head at rightmost position), so TOP is never inferred. Test: `recognition / r_reduce left_expansion`.
+
+**`test_arith_fragment_plus_n`** — exercises left_boundary seeding + left_expansion for terminal-head left-recursive grammar. Uses existing `grammar_arith`. Fragment `["+";"n"]`: terminal "+" seeds PartialItem(r,1,2) at T[0,1] during terminal seeding; left_boundary immediately applies `find_left_expansions(PartialItem(r,1,2))` → virtual E sibling → PartialItem(r,0,2) at T[0,1]. Agenda: PartialItem(r,0,2) + T → E at T[0,2]. Confirms boundary seeding handles the left_expansion path for left-recursive grammars.
+
+**Known gap (not yet addressed):** items that arrive at T[0,k-1] via the agenda AFTER boundary seeding fires, but where T[0,n] is already non-empty (so the L-Reduce loop guard `items = []` prevents it from running), are not covered. Example: S → A H B (head=H, middle), fragment ["h";"b"] — PartialItem(r,1,3) reaches T[0,n]=T[0,2] via agenda (B covered), but virtual A is never added because L-Reduce doesn't run and the final pass only uses `find_right_expansions_by_right`. Similarly: the final R/L passes (after the reduce loops) only use one of the two lookup functions each — they mirror the pre-fix gap.
+
 ## L-Reduce / R-Reduce ordering — arbitrary, not principled
 
 The current implementation runs L-Reduce first (always), then R-Reduce conditionally (only if T[0,n] is still empty after L-Reduce). This ordering has no theoretical grounding — it's a pragmatic choice that happens to work for left-leaning grammars but is wrong in general.

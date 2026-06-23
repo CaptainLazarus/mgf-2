@@ -26,12 +26,20 @@ let l_reduce_step tbl agenda k =
   frontier_bfs tbl agenda
     find_right_expansions_by_right
     (fun b (x, a) -> (x, FromInductiveFill (a, b)))
+    0 (k - 1) tbl.entries.(0).(k - 1).items;
+  frontier_bfs tbl agenda
+    find_left_expansions
+    (fun b (x, a) -> (x, FromInductiveFillL (a, b)))
     0 (k - 1) tbl.entries.(0).(k - 1).items
 
 let r_reduce_step tbl agenda k n =
   frontier_bfs tbl agenda
     find_right_expansions
     (fun b (x, y_h) -> (x, FromInductiveFillRight (b, y_h)))
+    (k + 1) n tbl.entries.(k + 1).(n).items;
+  frontier_bfs tbl agenda
+    find_left_expansions_by_left
+    (fun b (x, right_item) -> (x, FromInductiveFillRight (b, HItem right_item)))
     (k + 1) n tbl.entries.(k + 1).(n).items
 
 let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
@@ -64,6 +72,10 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
       find_right_expansions
       (fun b (x, y_h) -> (x, FromInductiveFillRight (b, y_h)))
       0 n tbl.entries.(0).(n).items;
+    frontier_bfs tbl agenda
+      find_left_expansions_by_left
+      (fun b (x, right_item) -> (x, FromInductiveFillRight (b, HItem right_item)))
+      0 n tbl.entries.(0).(n).items;
     Worklist.process_agenda ~debug tbl agenda);
 
   let new_items =
@@ -74,6 +86,10 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
     frontier_bfs tbl agenda
       find_right_expansions_by_right
       (fun b (x, a) -> (x, FromInductiveFill (a, b)))
+      0 n new_items;
+    frontier_bfs tbl agenda
+      find_left_expansions
+      (fun b (x, a) -> (x, FromInductiveFillL (a, b)))
       0 n new_items;
     Worklist.process_agenda ~debug tbl agenda);
 

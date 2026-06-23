@@ -149,18 +149,16 @@ let print_results ?grammar ?min_yield tbl roots mode =
             List.iter (fun s -> Printf.printf "│    %s\n" s) lines;
             Printf.printf "└─\n"
         | Trees ->
-            let by_string = Hashtbl.create 8 in
-            List.iter
-              (fun tree ->
-                let key = linearize ?grammar ?min_yield ~virtuals:true tree in
-                if not (Hashtbl.mem by_string key) then
-                  Hashtbl.replace by_string key tree)
-              trees;
-            let unique = Hashtbl.fold (fun _ t acc -> t :: acc) by_string [] in
+            (* Dedup by tree STRUCTURE, not by yield string: two trees with the
+               same yield but different shape (genuine ambiguity) must both show.
+               reconstruct already returns structurally-unique trees. *)
             let unique =
-              List.sort
-                (fun a b -> compare (count_gaps a) (count_gaps b))
-                unique
+              List.sort_uniq
+                (fun a b ->
+                  match compare (count_gaps a) (count_gaps b) with
+                  | 0 -> compare a b
+                  | c -> c)
+                trees
             in
             let n = List.length unique in
             Printf.printf "│  %d unique tree%s:\n" n (if n = 1 then "" else "s");

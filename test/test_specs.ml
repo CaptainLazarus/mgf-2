@@ -543,6 +543,50 @@ let test_linear_gcl_np () =
 *)
 
 (* ============================================================ *)
+(*  Suite — l_reduce left_expansion fix                        *)
+(* ============================================================ *)
+
+(* Grammar: X -> A D E (head=D), A -> B C (head=C).
+   Fragment ["c";"d";"e"]: B is missing from A, A is missing from X.
+   l_reduce must use find_left_expansions (not just find_right_expansions_by_right)
+   to infer A at T[0,1] with virtual B, then X at T[0,3]. *)
+let test_lreduce_left_expansion () =
+  let tbl =
+    recognized Grammars.grammar_lreduce_left_expansion [ "c"; "d"; "e" ]
+  in
+  Alcotest.(check bool)
+    "X inferred at T[0,3] via left_expansion virtual fill" true
+    (has tbl 0 3 "X")
+
+(* Grammar: TOP → F P (head=F), P → B H (head=H), B → C D (head=D).
+   Fragment ["f";"c";"d"]: H is missing from P (right sibling of B).
+   r_reduce_step k=0 fires find_left_expansions_by_left(B) at T[1,3]:
+   left_expansion (P, B, PartialItem(P→BH,1,2)) → P at T[1,3] with virtual H.
+   Agenda then combines P with PartialItem(TOP→FP,0,1) → TOP at T[0,3].
+   Without the fix (find_right_expansions only): P→BH has no right_expansion rule
+   (head is rightmost), so P is never placed at T[1,3]. *)
+let test_rreduce_left_expansion () =
+  let tbl =
+    recognized Grammars.grammar_rreduce_left_expansion [ "f"; "c"; "d" ]
+  in
+  Alcotest.(check bool)
+    "TOP inferred at T[0,3] via r_reduce left_expansion virtual fill" true
+    (has tbl 0 3 "TOP")
+
+(* Grammar: E → E '+' T (head='+'), E → T, T → 'n'.
+   Fragment ["+";"n"]: the left E sibling of '+' is missing from the left boundary.
+   left_boundary seeding fires find_left_expansions(PartialItem(r,1,2)):
+   the '+' terminal seeds PartialItem(r,1,2) at T[0,1] during terminal seeding,
+   so left_boundary immediately finds left_expansion rule (PartialItem(r,0,2), E, PartialItem(r,1,2))
+   and adds PartialItem(r,0,2) with virtual E. Agenda then: PartialItem(r,0,2) + T → E at T[0,2].
+   Tests that boundary seeding correctly handles terminal-head productions with left recursion. *)
+let test_arith_fragment_plus_n () =
+  let tbl = recognized Grammars.grammar_arith [ "+"; "n" ] in
+  Alcotest.(check bool)
+    "E at T[0,2] for [+;n] fragment (left boundary seeding)" true
+    (has tbl 0 2 "E")
+
+(* ============================================================ *)
 (*  Runner                                                      *)
 (* ============================================================ *)
 
@@ -552,6 +596,9 @@ let () =
       ( "recognition",
         [
           Alcotest.test_case "gcl accepted" `Quick test_gcl_accepted;
+          Alcotest.test_case "l_reduce left_expansion" `Quick test_lreduce_left_expansion;
+          Alcotest.test_case "r_reduce left_expansion" `Quick test_rreduce_left_expansion;
+          Alcotest.test_case "arith fragment [+;n]" `Quick test_arith_fragment_plus_n;
           Alcotest.test_case "gcl rejected" `Quick test_gcl_rejected;
           Alcotest.test_case "gcl NP in cell" `Quick test_gcl_np_in_cell;
           Alcotest.test_case "epsilon a b" `Quick test_epsilon_ab_accepted;

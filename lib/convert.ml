@@ -45,3 +45,7 @@ let string_of_derivation = function
       Printf.sprintf "InductiveFillRight(left: %s, virtual: %s)"
         (string_of_h_item real_left)
         (string_of_h_item_or_terminal virtual_right)
+  | FromInductiveFillL (virtual_left, real_right) ->
+      Printf.sprintf "InductiveFillL(virtual: %s, right: %s)"
+        (string_of_h_item_or_terminal virtual_left)
+        (string_of_h_item real_right)
