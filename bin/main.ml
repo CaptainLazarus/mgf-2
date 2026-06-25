@@ -56,8 +56,7 @@ let () =
             | Types.FromEpsilon _ -> "FromEpsilon"
             | Types.FromBoundaryRight _ -> "FromBoundaryRight"
             | Types.FromBoundaryLeft _ -> "FromBoundaryLeft"
-            | Types.FromInductiveFill _ -> "FromInductiveFill"
-            | Types.FromInductiveFillL _ -> "FromInductiveFillL"
+            | Types.FromInductiveFillLeft _ -> "FromInductiveFillLeft"
             | Types.FromInductiveFillRight _ -> "FromInductiveFillRight"
           in Printf.printf "  - %s\n" s)
         derivs;

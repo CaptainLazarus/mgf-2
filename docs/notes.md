@@ -45,7 +45,7 @@ Could be a `Set` for O(log n) membership instead of O(n).
 
 **Reproducer grammar:** `grammar_lreduce_left_expansion` in `grammars.ml`. Fragment `["c";"d";"e"]` on `X → A D E (head=D), A → B C (head=C)`. Without fix: X not inferred. With fix: X at T[0,3].
 
-**Fix:** added `find_left_expansions` call in `l_reduce_step` (new derivation `FromInductiveFillL`) and `find_left_expansions_by_left` call in `r_reduce_step` (reuses `FromInductiveFillRight`). Also added `FromInductiveFillL` variant to `types.ml`, `convert.ml`, `reconstruct.ml`. Test: `recognition / l_reduce left_expansion`.
+**Fix:** added `find_left_expansions` call in `l_reduce_step` (new derivation `FromInductiveFillLeft`) and `find_left_expansions_by_left` call in `r_reduce_step` (reuses `FromInductiveFillRight`). Also added `FromInductiveFillLeft` variant to `types.ml`, `convert.ml`, `reconstruct.ml`. Test: `recognition / l_reduce left_expansion`.
 
 ## Coverage grammars added (2026-06-23)
 

@@ -242,34 +242,34 @@ let find_projections_from_terminal cover term =
 let find_projections_from_item cover item =
   List.filter_map
     (fun (lhs, rhs) ->
-      match rhs with HItem hi when hi = item -> Some lhs | _ -> None)
+      match rhs with HItem h when h = item -> Some lhs | _ -> None)
     cover.projections
 
-let find_left_expansions cover right_item =
+let find_left_expansions cover curr_item =
   List.filter_map
-    (fun (result, x_h, ri) ->
-      if ri = right_item then Some (result, x_h) else None)
+    (fun (lhs, left, right) ->
+      if right = curr_item then Some (lhs, left) else None)
     cover.left_expansions
 
-let find_right_expansions cover left_item =
+let find_right_expansions_by_right cover curr_item =
   List.filter_map
-    (fun (result, li, y_h) ->
-      if li = left_item then Some (result, y_h) else None)
-    cover.right_expansions
-
-let find_right_expansions_by_right cover y_item =
-  List.filter_map
-    (fun (result, left_item, y_h) ->
-      match y_h with
-      | HItem hi when hi = y_item -> Some (result, left_item)
+    (fun (lhs, left, right) ->
+      match right with
+      | HItem h when h = curr_item -> Some (lhs, left)
       | _ -> None)
     cover.right_expansions
 
-let find_left_expansions_by_left cover x_item =
+let find_right_expansions cover curr_item =
   List.filter_map
-    (fun (result, x_h, right_item) ->
-      match x_h with
-      | HItem hi when hi = x_item -> Some (result, right_item)
+    (fun (lhs, left, right) ->
+      if left = curr_item then Some (lhs, right) else None)
+    cover.right_expansions
+
+let find_left_expansions_by_left cover curr_item =
+  List.filter_map
+    (fun (lhs, left, right) ->
+      match left with
+      | HItem h when h = curr_item -> Some (lhs, right)
       | _ -> None)
     cover.left_expansions
 

@@ -24,22 +24,22 @@ let frontier_bfs tbl agenda lookup make_deriv ti tj seed_items =
 
 let l_reduce_step tbl agenda k =
   frontier_bfs tbl agenda
-    find_right_expansions_by_right
-    (fun b (x, a) -> (x, FromInductiveFill (a, b)))
+    find_left_expansions
+    (fun right (lhs, left) -> (lhs, FromInductiveFillLeft (left, right)))
     0 (k - 1) tbl.entries.(0).(k - 1).items;
   frontier_bfs tbl agenda
-    find_left_expansions
-    (fun b (x, a) -> (x, FromInductiveFillL (a, b)))
+    find_right_expansions_by_right
+    (fun right (lhs, left) -> (lhs, FromInductiveFillLeft (HItem left, right)))
     0 (k - 1) tbl.entries.(0).(k - 1).items
 
 let r_reduce_step tbl agenda k n =
   frontier_bfs tbl agenda
     find_right_expansions
-    (fun b (x, y_h) -> (x, FromInductiveFillRight (b, y_h)))
+    (fun left (lhs, right) -> (lhs, FromInductiveFillRight (left, right)))
     (k + 1) n tbl.entries.(k + 1).(n).items;
   frontier_bfs tbl agenda
     find_left_expansions_by_left
-    (fun b (x, right_item) -> (x, FromInductiveFillRight (b, HItem right_item)))
+    (fun left (lhs, right) -> (lhs, FromInductiveFillRight (left, HItem right)))
     (k + 1) n tbl.entries.(k + 1).(n).items
 
 let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
@@ -50,8 +50,8 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
   Seed.terminals tbl n agenda;
 
   if n > 0 then (
-    Seed.left_boundary tbl tbl.input.(0) agenda;
-    Seed.right_boundary tbl tbl.input.(n - 1) n agenda);
+    (* Seed.left_boundary tbl tbl.input.(0) agenda; *)
+    (* Seed.right_boundary tbl tbl.input.(n - 1) n agenda *));
 
   Worklist.process_agenda ~debug tbl agenda;
 
@@ -85,11 +85,11 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
   if new_items <> [] then (
     frontier_bfs tbl agenda
       find_right_expansions_by_right
-      (fun b (x, a) -> (x, FromInductiveFill (a, b)))
+      (fun b (x, a) -> (x, FromInductiveFillLeft (HItem a, b)))
       0 n new_items;
     frontier_bfs tbl agenda
       find_left_expansions
-      (fun b (x, a) -> (x, FromInductiveFillL (a, b)))
+      (fun b (x, a) -> (x, FromInductiveFillLeft (a, b)))
       0 n new_items;
     Worklist.process_agenda ~debug tbl agenda);
 
