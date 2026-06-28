@@ -49,9 +49,15 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
   Seed.epsilons tbl n agenda;
   Seed.terminals tbl n agenda;
 
+  (* Boundary seeding is NOT subsumed by L/R-Reduce. L-Reduce climbs from items
+     already in T[0,k]; R-Reduce climbs from items already in T[k,n]. If the
+     edge token is not a head terminal, those cells start empty and L/R-Reduce
+     have nothing to climb from. Boundary seeding directly seeds T[0,1] and
+     T[n-1,n] from the cover's expansion lists regardless of head position,
+     providing the bootstrap that L/R-Reduce then propagates inward. *)
   if n > 0 then (
-    (* Seed.left_boundary tbl tbl.input.(0) agenda; *)
-    (* Seed.right_boundary tbl tbl.input.(n - 1) n agenda *));
+    Seed.left_boundary tbl tbl.input.(0) agenda;
+    Seed.right_boundary tbl tbl.input.(n - 1) n agenda);
 
   Worklist.process_agenda ~debug tbl agenda;
 
