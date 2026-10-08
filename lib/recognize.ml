@@ -24,14 +24,22 @@ let frontier_bfs tbl agenda lookup make_deriv ti tj seed_items =
 
 let l_reduce_step tbl agenda k =
   frontier_bfs tbl agenda
+    find_left_expansions
+    (fun right (lhs, left) -> (lhs, FromInductiveFillLeft (left, right)))
+    0 (k - 1) tbl.entries.(0).(k - 1).items;
+  frontier_bfs tbl agenda
     find_right_expansions_by_right
-    (fun b (x, a) -> (x, FromInductiveFill (a, b)))
+    (fun right (lhs, left) -> (lhs, FromInductiveFillLeft (HItem left, right)))
     0 (k - 1) tbl.entries.(0).(k - 1).items
 
 let r_reduce_step tbl agenda k n =
   frontier_bfs tbl agenda
     find_right_expansions
-    (fun b (x, y_h) -> (x, FromInductiveFillRight (b, y_h)))
+    (fun left (lhs, right) -> (lhs, FromInductiveFillRight (left, right)))
+    (k + 1) n tbl.entries.(k + 1).(n).items;
+  frontier_bfs tbl agenda
+    find_left_expansions_by_left
+    (fun left (lhs, right) -> (lhs, FromInductiveFillRight (left, HItem right)))
     (k + 1) n tbl.entries.(k + 1).(n).items
 
 let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
@@ -41,6 +49,12 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
   Seed.epsilons tbl n agenda;
   Seed.terminals tbl n agenda;
 
+  (* Boundary seeding is NOT subsumed by L/R-Reduce. L-Reduce climbs from items
+     already in T[0,k]; R-Reduce climbs from items already in T[k,n]. If the
+     edge token is not a head terminal, those cells start empty and L/R-Reduce
+     have nothing to climb from. Boundary seeding directly seeds T[0,1] and
+     T[n-1,n] from the cover's expansion lists regardless of head position,
+     providing the bootstrap that L/R-Reduce then propagates inward. *)
   if n > 0 then (
     Seed.left_boundary tbl tbl.input.(0) agenda;
     Seed.right_boundary tbl tbl.input.(n - 1) n agenda);
@@ -64,6 +78,10 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
       find_right_expansions
       (fun b (x, y_h) -> (x, FromInductiveFillRight (b, y_h)))
       0 n tbl.entries.(0).(n).items;
+    frontier_bfs tbl agenda
+      find_left_expansions_by_left
+      (fun b (x, right_item) -> (x, FromInductiveFillRight (b, HItem right_item)))
+      0 n tbl.entries.(0).(n).items;
     Worklist.process_agenda ~debug tbl agenda);
 
   let new_items =
@@ -73,7 +91,11 @@ let recognize_tbl ?(debug = false) (tbl : rec_table) : rec_table =
   if new_items <> [] then (
     frontier_bfs tbl agenda
       find_right_expansions_by_right
-      (fun b (x, a) -> (x, FromInductiveFill (a, b)))
+      (fun b (x, a) -> (x, FromInductiveFillLeft (HItem a, b)))
+      0 n new_items;
+    frontier_bfs tbl agenda
+      find_left_expansions
+      (fun b (x, a) -> (x, FromInductiveFillLeft (a, b)))
       0 n new_items;
     Worklist.process_agenda ~debug tbl agenda);
 

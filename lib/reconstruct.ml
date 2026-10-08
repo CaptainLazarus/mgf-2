@@ -91,23 +91,21 @@ and subtrees_for_deriv mode visited memo tbl item i j deriv : tree list Seq.t =
       match item with
       | CompleteItem nt -> Seq.map (fun sub -> [ Node (nt, sub) ]) combined
       | PartialItem _ -> combined)
-  | FromInductiveFill (virtual_left, real_right) -> (
-      let right_seq = get_subtrees mode visited memo tbl real_right i j in
-      let virt =
-        match mode with
-        | `Virtual -> [ Virtual (HItem virtual_left) ]
-        | `Omit -> []
-      in
-      let combined = Seq.map (fun sub -> virt @ sub) right_seq in
-      match item with
-      | CompleteItem nt -> Seq.map (fun sub -> [ Node (nt, sub) ]) combined
-      | PartialItem _ -> combined)
   | FromInductiveFillRight (real_left, virtual_right) -> (
       let left_seq = get_subtrees mode visited memo tbl real_left i j in
       let virt =
         match mode with `Virtual -> [ Virtual virtual_right ] | `Omit -> []
       in
       let combined = Seq.map (fun sub -> sub @ virt) left_seq in
+      match item with
+      | CompleteItem nt -> Seq.map (fun sub -> [ Node (nt, sub) ]) combined
+      | PartialItem _ -> combined)
+  | FromInductiveFillLeft (virtual_left, real_right) -> (
+      let right_seq = get_subtrees mode visited memo tbl real_right i j in
+      let virt =
+        match mode with `Virtual -> [ Virtual virtual_left ] | `Omit -> []
+      in
+      let combined = Seq.map (fun sub -> virt @ sub) right_seq in
       match item with
       | CompleteItem nt -> Seq.map (fun sub -> [ Node (nt, sub) ]) combined
       | PartialItem _ -> combined)

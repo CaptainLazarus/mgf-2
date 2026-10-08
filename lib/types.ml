@@ -27,8 +27,8 @@ type derivation =
   | FromEpsilon of h_item
   | FromBoundaryRight of h_item_or_terminal * h_item_or_terminal
   | FromBoundaryLeft of h_item_or_terminal * h_item_or_terminal
-  | FromInductiveFill of h_item * h_item
   | FromInductiveFillRight of h_item * h_item_or_terminal
+  | FromInductiveFillLeft of h_item_or_terminal * h_item
 
 (* H-cover structure *)
 type h_cover = {

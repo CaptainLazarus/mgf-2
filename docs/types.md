@@ -63,7 +63,7 @@ type derivation =
   | FromBoundaryRight of h_item_or_terminal * h_item_or_terminal (* L-Reduce: left child is virtual *)
   | FromBoundaryLeft  of h_item_or_terminal * h_item_or_terminal (* R-Reduce: right child is virtual *)
   (* TODO : Why are these unequal ?  Shouldn't be. Fix *)
-  | FromInductiveFill      of h_item * h_item                    (* L-Reduce inductive step *)
+  | FromInductiveFillLeft      of h_item_or_terminal * h_item                    (* L-Reduce inductive step *)
   | FromInductiveFillRight of h_item * h_item_or_terminal        (* R-Reduce inductive step *)
 ```
 
