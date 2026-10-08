@@ -145,3 +145,48 @@ Need to decide: rename table items, rename output labels, or both. Goal is no ov
 ## process_agenda — debug trace available
 
 `process_agenda` and `recognize_with` accept an optional `~debug:true` flag. When enabled, logs each dequeue and every new item added, annotated with the rule that fired (project, eps-project, left-expand, right-expand, rev-right, rev-left). Off by default — no impact on tests or normal runs.
+
+## Spine symmetry experiment (2026-08-24) — NEGATIVE RESULT
+
+**Hypothesis tested.** The left/right asymmetry (left context reads *down* the
+spine, right context reads *up* it) predicts that L-Reduce and R-Reduce cannot be
+mirror-image code. Two prior bugs had this shape (the 2026-06-23 missing
+`find_left_expansions` fix; the open `frontier_bfs` suspicion). So: build a grammar
+where the two sides are tied together by a count, feed it mirrored fragments, and
+check the counts come back mirrored.
+
+**Setup.** Throwaway `bin/spine_test.ml` (deleted after the run; `bin/dune` reverted)
+driving two grammars, with `Hcover.set_head` sweeping the head over every RHS slot
+of production 1. Reported the reconstructed string with fewest virtual nodes.
+
+```
+grammars/spine.g4      s : A [s] B | [M] ;         L(s) = A^n M B^n
+grammars/spine2.g4     s : A A [s] B | [M] ;       L(s) = (A A)^n M B^n
+```
+
+`spine2` is the discriminating one: 2 A's per level but only one B, so a naive
+"mirror the right-hand logic" implementation gets the 2:1 ratio visibly wrong.
+
+**Result — no asymmetry bug.** Counts exact in both directions, identical across
+every head position (1/2/3 for `spine`, 1/3/4 for `spine2`):
+
+```
+spine    A M B B  -> "A" A M B B          A A M B -> A A M B "B"
+         M B B    -> "A" "A" M B B        A A M   -> A A M "B" "B"
+
+spine2   M B      -> "A" "A" M B          A A M     -> A A M "B"
+         M B B    -> "A" "A" "A" "A" M B B    A A A A M -> A A A A M "B" "B"
+```
+
+**One real variation, not a bug.** Anchorless fragments (`A A A A` / `B B`, no `M`)
+render the middle placeholder two ways: virtual `CompleteItem s` (printed via
+`min_yield` as `M`) vs virtual `PartialItem` window (printed as `s`). Which one you
+get flips with head position — and it flips *exactly mirrored*, which is evidence
+against an asymmetry bug. Same claim, different display resolution. This is the
+already-listed "descend into virtual NTs" output task, nothing more.
+
+**What this does NOT cover.** One self-recursive production, one anchor terminal.
+The known remaining gap (final passes using only one lookup each, with `T[0,n]`
+non-empty) needs a grammar where a complete parse and a further left-extension
+compete — `spine.g4` cannot produce that configuration. So this is a negative
+result on mirror-symmetry only, and says nothing about the final-passes gap.

@@ -1,1 +1,1 @@
-if (rx_ring->vsi->type == ICE_VSI_PF &&
+f(a,b) {}

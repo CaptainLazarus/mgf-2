@@ -23,3 +23,7 @@
 (executable
  (name rand_split)
  (libraries practice))
+
+(executable
+ (name rect_probe)
+ (libraries practice))
